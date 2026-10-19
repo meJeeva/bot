@@ -1,0 +1,1155 @@
+{
+  "run_id": "research_audit_xauusd_20260414_20261014_647d4067",
+  "cost_model_version": 2,
+  "target_daily_profit": 10.0,
+  "is_soft_objective": true,
+  "note": "Daily P&L is grouped by the trade's exit time (UTC) under the measured per-trade spread scenario; end-of-data marks are excluded. The target is a soft objective reported as a historical count only.",
+  "by_strategy": {
+    "trend_pullback": {
+      "timezone": "UTC",
+      "target_daily_profit": 10.0,
+      "closed_trades": 427,
+      "net_total": 3180.298399999453,
+      "daily": {
+        "available": true,
+        "trading_days": 95,
+        "target_daily_profit": 10.0,
+        "mean": 33.476825263152136,
+        "median": -552.9770999999956,
+        "stdev": 2275.1282681217285,
+        "min": -3893.45029999994,
+        "p05": -3169.7626649999165,
+        "p95": 4285.027479999823,
+        "max": 8168.812099999615,
+        "winning_days": 38,
+        "losing_days": 57,
+        "flat_days": 0,
+        "win_day_rate": 0.4,
+        "losing_day_rate": 0.6,
+        "days_reaching_target": 38,
+        "days_reaching_target_rate": 0.4,
+        "note": "The target is a SOFT objective. days_reaching_target is a historical count, not a promise; a negative mean day or a high losing-day rate means the target was not achieved on average."
+      },
+      "daily_series": [
+        {
+          "date": "2026-04-27",
+          "net": -1006.5543999999055,
+          "trades": 2
+        },
+        {
+          "date": "2026-04-28",
+          "net": 1674.7354000000096,
+          "trades": 8
+        },
+        {
+          "date": "2026-04-29",
+          "net": -39.752999999947974,
+          "trades": 6
+        },
+        {
+          "date": "2026-05-04",
+          "net": 1503.1886999999883,
+          "trades": 3
+        },
+        {
+          "date": "2026-05-05",
+          "net": -2443.9912999999347,
+          "trades": 5
+        },
+        {
+          "date": "2026-05-07",
+          "net": 2968.0396000000605,
+          "trades": 6
+        },
+        {
+          "date": "2026-05-14",
+          "net": -1546.8814000000175,
+          "trades": 3
+        },
+        {
+          "date": "2026-05-15",
+          "net": -507.1184999999855,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-17",
+          "net": 3008.9837499999317,
+          "trades": 3
+        },
+        {
+          "date": "2026-05-18",
+          "net": -3095.2256999999745,
+          "trades": 6
+        },
+        {
+          "date": "2026-05-19",
+          "net": -51.90200000003347,
+          "trades": 9
+        },
+        {
+          "date": "2026-05-20",
+          "net": -1055.233300000023,
+          "trades": 8
+        },
+        {
+          "date": "2026-05-22",
+          "net": -999.4275999999286,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-24",
+          "net": -1028.9114499999334,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-26",
+          "net": 1400.914099999809,
+          "trades": 9
+        },
+        {
+          "date": "2026-05-27",
+          "net": 1278.2945999999092,
+          "trades": 10
+        },
+        {
+          "date": "2026-05-28",
+          "net": -2484.1250999998947,
+          "trades": 5
+        },
+        {
+          "date": "2026-06-01",
+          "net": 2242.8057999999132,
+          "trades": 9
+        },
+        {
+          "date": "2026-06-02",
+          "net": -1506.818099999982,
+          "trades": 8
+        },
+        {
+          "date": "2026-06-03",
+          "net": 3909.219500000034,
+          "trades": 10
+        },
+        {
+          "date": "2026-06-04",
+          "net": -472.0000000000291,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-08",
+          "net": 3063.212599999999,
+          "trades": 3
+        },
+        {
+          "date": "2026-06-10",
+          "net": 4237.836999999762,
+          "trades": 4
+        },
+        {
+          "date": "2026-06-11",
+          "net": -638.1088000002592,
+          "trades": 13
+        },
+        {
+          "date": "2026-06-16",
+          "net": -1089.8744000000265,
+          "trades": 2
+        },
+        {
+          "date": "2026-06-18",
+          "net": 1078.7679999999777,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-19",
+          "net": 1997.648999999767,
+          "trades": 5
+        },
+        {
+          "date": "2026-06-21",
+          "net": 1653.3768000000646,
+          "trades": 3
+        },
+        {
+          "date": "2026-06-22",
+          "net": -2552.896499999962,
+          "trades": 5
+        },
+        {
+          "date": "2026-06-23",
+          "net": 216.08599999967555,
+          "trades": 10
+        },
+        {
+          "date": "2026-06-24",
+          "net": 1604.8789999999817,
+          "trades": 6
+        },
+        {
+          "date": "2026-06-25",
+          "net": 1686.3868999999079,
+          "trades": 8
+        },
+        {
+          "date": "2026-06-26",
+          "net": -567.8909999999851,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-29",
+          "net": 4554.325999999904,
+          "trades": 4
+        },
+        {
+          "date": "2026-06-30",
+          "net": -605.4935,
+          "trades": 4
+        },
+        {
+          "date": "2026-07-01",
+          "net": -584.7659999999909,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-03",
+          "net": -2884.7761999999484,
+          "trades": 5
+        },
+        {
+          "date": "2026-07-06",
+          "net": -1702.294199999984,
+          "trades": 3
+        },
+        {
+          "date": "2026-07-10",
+          "net": -234.1460999997986,
+          "trades": 5
+        },
+        {
+          "date": "2026-07-13",
+          "net": 3862.8712500000092,
+          "trades": 5
+        },
+        {
+          "date": "2026-07-14",
+          "net": -1163.0569499999706,
+          "trades": 2
+        },
+        {
+          "date": "2026-07-15",
+          "net": -2305.9521999999706,
+          "trades": 4
+        },
+        {
+          "date": "2026-07-16",
+          "net": 1139.5542500000074,
+          "trades": 4
+        },
+        {
+          "date": "2026-07-17",
+          "net": -2368.1306999999415,
+          "trades": 7
+        },
+        {
+          "date": "2026-07-20",
+          "net": 828.5000000000618,
+          "trades": 3
+        },
+        {
+          "date": "2026-07-21",
+          "net": -1126.1766499999844,
+          "trades": 2
+        },
+        {
+          "date": "2026-07-22",
+          "net": 3255.21499999984,
+          "trades": 3
+        },
+        {
+          "date": "2026-07-26",
+          "net": -1724.497199999965,
+          "trades": 3
+        },
+        {
+          "date": "2026-07-27",
+          "net": -3893.45029999994,
+          "trades": 7
+        },
+        {
+          "date": "2026-07-28",
+          "net": -821.973399999908,
+          "trades": 8
+        },
+        {
+          "date": "2026-07-29",
+          "net": -997.3536499999298,
+          "trades": 5
+        },
+        {
+          "date": "2026-07-30",
+          "net": -561.13099999998,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-03",
+          "net": -384.941549999925,
+          "trades": 4
+        },
+        {
+          "date": "2026-08-04",
+          "net": -1072.0346999999892,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-05",
+          "net": 1041.990299999911,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-06",
+          "net": -1594.566899999952,
+          "trades": 3
+        },
+        {
+          "date": "2026-08-07",
+          "net": -528.0191999999533,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-09",
+          "net": -2077.810100000022,
+          "trades": 4
+        },
+        {
+          "date": "2026-08-10",
+          "net": -861.3370000000006,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-12",
+          "net": 966.6920500000116,
+          "trades": 4
+        },
+        {
+          "date": "2026-08-14",
+          "net": -856.7102500000464,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-16",
+          "net": -1548.663149999877,
+          "trades": 3
+        },
+        {
+          "date": "2026-08-17",
+          "net": -1889.2996999998966,
+          "trades": 7
+        },
+        {
+          "date": "2026-08-18",
+          "net": -975.2264000000231,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-20",
+          "net": -3343.682249999781,
+          "trades": 7
+        },
+        {
+          "date": "2026-08-21",
+          "net": 7123.738750000063,
+          "trades": 9
+        },
+        {
+          "date": "2026-08-24",
+          "net": 8168.812099999615,
+          "trades": 11
+        },
+        {
+          "date": "2026-08-27",
+          "net": -552.9770999999956,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-31",
+          "net": -3722.7966499999757,
+          "trades": 7
+        },
+        {
+          "date": "2026-09-01",
+          "net": 1042.1207999999604,
+          "trades": 1
+        },
+        {
+          "date": "2026-09-02",
+          "net": -55.643150000056266,
+          "trades": 6
+        },
+        {
+          "date": "2026-09-04",
+          "net": 1048.128199999955,
+          "trades": 1
+        },
+        {
+          "date": "2026-09-07",
+          "net": 2521.822349999913,
+          "trades": 3
+        },
+        {
+          "date": "2026-09-08",
+          "net": 492.6156499999877,
+          "trades": 5
+        },
+        {
+          "date": "2026-09-09",
+          "net": -2212.120499999913,
+          "trades": 4
+        },
+        {
+          "date": "2026-09-10",
+          "net": 1070.623199999936,
+          "trades": 1
+        },
+        {
+          "date": "2026-09-11",
+          "net": 1612.8620499998874,
+          "trades": 3
+        },
+        {
+          "date": "2026-09-14",
+          "net": 4395.1385999999675,
+          "trades": 4
+        },
+        {
+          "date": "2026-09-15",
+          "net": -966.6974999999736,
+          "trades": 2
+        },
+        {
+          "date": "2026-09-17",
+          "net": -3377.0062000000516,
+          "trades": 6
+        },
+        {
+          "date": "2026-09-21",
+          "net": 549.2803000000217,
+          "trades": 5
+        },
+        {
+          "date": "2026-09-22",
+          "net": -1116.3965999999755,
+          "trades": 2
+        },
+        {
+          "date": "2026-09-23",
+          "net": 532.4653999999667,
+          "trades": 2
+        },
+        {
+          "date": "2026-09-24",
+          "net": 2438.184099999784,
+          "trades": 11
+        },
+        {
+          "date": "2026-09-28",
+          "net": 4532.721199999918,
+          "trades": 4
+        },
+        {
+          "date": "2026-09-29",
+          "net": -726.3608000000198,
+          "trades": 4
+        },
+        {
+          "date": "2026-10-01",
+          "net": -1787.3141999998857,
+          "trades": 3
+        },
+        {
+          "date": "2026-10-04",
+          "net": 526.3232999999561,
+          "trades": 2
+        },
+        {
+          "date": "2026-10-05",
+          "net": -764.3050999999296,
+          "trades": 4
+        },
+        {
+          "date": "2026-10-06",
+          "net": -2018.9079999999135,
+          "trades": 4
+        },
+        {
+          "date": "2026-10-07",
+          "net": -265.34764999985146,
+          "trades": 3
+        },
+        {
+          "date": "2026-10-08",
+          "net": -1710.816099999979,
+          "trades": 3
+        },
+        {
+          "date": "2026-10-12",
+          "net": -2308.499999999891,
+          "trades": 5
+        },
+        {
+          "date": "2026-10-13",
+          "net": -3816.2630000000054,
+          "trades": 8
+        },
+        {
+          "date": "2026-10-14",
+          "net": 545.5911500000024,
+          "trades": 8
+        }
+      ],
+      "monthly": {
+        "2026-04": {
+          "net": 628.4280000001561,
+          "days": 3,
+          "losing_days": 2,
+          "mean_per_day": 209.47600000005204
+        },
+        "2026-05": {
+          "net": -3053.395600000026,
+          "days": 14,
+          "losing_days": 9,
+          "mean_per_day": -218.09968571428757
+        },
+        "2026-06": {
+          "net": 18811.464299998745,
+          "days": 18,
+          "losing_days": 7,
+          "mean_per_day": 1045.0813499999304
+        },
+        "2026-07": {
+          "net": -11281.564049999393,
+          "days": 17,
+          "losing_days": 13,
+          "mean_per_day": -663.6214147058466
+        },
+        "2026-08": {
+          "net": -2106.8317499998366,
+          "days": 17,
+          "losing_days": 13,
+          "mean_per_day": -123.9312794117551
+        },
+        "2026-09": {
+          "net": 11781.737099999307,
+          "days": 17,
+          "losing_days": 6,
+          "mean_per_day": 693.0433588234887
+        },
+        "2026-10": {
+          "net": -11599.539599999496,
+          "days": 9,
+          "losing_days": 7,
+          "mean_per_day": -1288.8377333332774
+        }
+      },
+      "limitations": [
+        "Daily P&L is grouped by the trade's exit time in UTC; broker-day boundaries may differ.",
+        "The target is a soft objective and is reported as a historical count of days that reached it, never as a promise.",
+        "A small number of trading days cannot establish a daily-profit edge."
+      ],
+      "volatility_regime": {
+        "available": true,
+        "method": "ATR(14) terciles over the window (low/mid/high volatility)",
+        "atr_period": 14,
+        "regimes": {
+          "low_volatility": {
+            "trades": 140,
+            "net": -10233.33884999946,
+            "mean": -73.09527749999614,
+            "win_rate": 0.3,
+            "profit_factor": 0.7865456275203959
+          },
+          "mid_volatility": {
+            "trades": 132,
+            "net": 176.32299999986958,
+            "mean": 1.335780303029315,
+            "win_rate": 0.3409090909090909,
+            "profit_factor": 1.0038185304966951
+          },
+          "high_volatility": {
+            "trades": 155,
+            "net": 13237.314249999043,
+            "mean": 85.40202741934866,
+            "win_rate": 0.3935483870967742,
+            "profit_factor": 1.2607107272284408
+          }
+        },
+        "trades_without_regime": 0
+      }
+    },
+    "breakout_retest": {
+      "timezone": "UTC",
+      "target_daily_profit": 10.0,
+      "closed_trades": 9,
+      "net_total": -1201.5269499998112,
+      "daily": {
+        "available": true,
+        "trading_days": 5,
+        "target_daily_profit": 10.0,
+        "mean": -240.30538999996224,
+        "median": -393.4999999999909,
+        "stdev": 507.5514620530399,
+        "min": -911.9999999998836,
+        "p05": -830.1053899999015,
+        "p95": 469.60000000000935,
+        "max": 580.5000000000036,
+        "winning_days": 2,
+        "losing_days": 3,
+        "flat_days": 0,
+        "win_day_rate": 0.4,
+        "losing_day_rate": 0.6,
+        "days_reaching_target": 2,
+        "days_reaching_target_rate": 0.4,
+        "note": "The target is a SOFT objective. days_reaching_target is a historical count, not a promise; a negative mean day or a high losing-day rate means the target was not achieved on average."
+      },
+      "daily_series": [
+        {
+          "date": "2026-07-10",
+          "net": -911.9999999998836,
+          "trades": 3
+        },
+        {
+          "date": "2026-07-24",
+          "net": 26.000000000032742,
+          "trades": 3
+        },
+        {
+          "date": "2026-08-03",
+          "net": -393.4999999999909,
+          "trades": 1
+        },
+        {
+          "date": "2026-09-23",
+          "net": 580.5000000000036,
+          "trades": 1
+        },
+        {
+          "date": "2026-10-01",
+          "net": -502.5269499999731,
+          "trades": 1
+        }
+      ],
+      "monthly": {
+        "2026-07": {
+          "net": -885.9999999998508,
+          "days": 2,
+          "losing_days": 1,
+          "mean_per_day": -442.9999999999254
+        },
+        "2026-08": {
+          "net": -393.4999999999909,
+          "days": 1,
+          "losing_days": 1,
+          "mean_per_day": -393.4999999999909
+        },
+        "2026-09": {
+          "net": 580.5000000000036,
+          "days": 1,
+          "losing_days": 0,
+          "mean_per_day": 580.5000000000036
+        },
+        "2026-10": {
+          "net": -502.5269499999731,
+          "days": 1,
+          "losing_days": 1,
+          "mean_per_day": -502.5269499999731
+        }
+      },
+      "limitations": [
+        "Daily P&L is grouped by the trade's exit time in UTC; broker-day boundaries may differ.",
+        "The target is a soft objective and is reported as a historical count of days that reached it, never as a promise.",
+        "A small number of trading days cannot establish a daily-profit edge."
+      ],
+      "volatility_regime": {
+        "available": true,
+        "method": "ATR(14) terciles over the window (low/mid/high volatility)",
+        "atr_period": 14,
+        "regimes": {
+          "low_volatility": {
+            "trades": 8,
+            "net": -698.9999999998381,
+            "mean": -87.37499999997976,
+            "win_rate": 0.25,
+            "profit_factor": 0.584299732381861
+          },
+          "mid_volatility": {
+            "trades": 1,
+            "net": -502.5269499999731,
+            "mean": -502.5269499999731,
+            "win_rate": 0.0,
+            "profit_factor": 0.0
+          },
+          "high_volatility": {
+            "trades": 0
+          }
+        },
+        "trades_without_regime": 0
+      }
+    },
+    "fibonacci": {
+      "timezone": "UTC",
+      "target_daily_profit": 10.0,
+      "closed_trades": 111,
+      "net_total": -48430.62991524435,
+      "daily": {
+        "available": true,
+        "trading_days": 70,
+        "target_daily_profit": 10.0,
+        "mean": -691.866141646348,
+        "median": -468.74735441042935,
+        "stdev": 410.09816225596103,
+        "min": -2208.809969731219,
+        "p05": -1507.180448300153,
+        "p95": -388.3236675576253,
+        "max": -233.7984498366184,
+        "winning_days": 0,
+        "losing_days": 70,
+        "flat_days": 0,
+        "win_day_rate": 0.0,
+        "losing_day_rate": 1.0,
+        "days_reaching_target": 0,
+        "days_reaching_target_rate": 0.0,
+        "note": "The target is a SOFT objective. days_reaching_target is a historical count, not a promise; a negative mean day or a high losing-day rate means the target was not achieved on average."
+      },
+      "daily_series": [
+        {
+          "date": "2026-04-14",
+          "net": -1337.115355646769,
+          "trades": 3
+        },
+        {
+          "date": "2026-04-15",
+          "net": -457.7984498365966,
+          "trades": 1
+        },
+        {
+          "date": "2026-04-16",
+          "net": -1993.5319285536475,
+          "trades": 4
+        },
+        {
+          "date": "2026-04-17",
+          "net": -1271.5094756572812,
+          "trades": 3
+        },
+        {
+          "date": "2026-04-19",
+          "net": -1484.9155134019404,
+          "trades": 3
+        },
+        {
+          "date": "2026-04-20",
+          "net": -969.4836593110969,
+          "trades": 2
+        },
+        {
+          "date": "2026-04-23",
+          "net": -877.7543010440372,
+          "trades": 2
+        },
+        {
+          "date": "2026-04-24",
+          "net": -477.3037450733274,
+          "trades": 1
+        },
+        {
+          "date": "2026-04-27",
+          "net": -1525.3972132168726,
+          "trades": 4
+        },
+        {
+          "date": "2026-04-29",
+          "net": -962.0712444342187,
+          "trades": 2
+        },
+        {
+          "date": "2026-04-30",
+          "net": -490.5321086126518,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-01",
+          "net": -468.1642327558397,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-04",
+          "net": -463.97204355492687,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-05",
+          "net": -950.4652560633175,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-06",
+          "net": -461.73299866093214,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-07",
+          "net": -935.8523584377049,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-10",
+          "net": -451.7518636897561,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-11",
+          "net": -1342.562479457406,
+          "trades": 3
+        },
+        {
+          "date": "2026-05-12",
+          "net": -1760.1918020939022,
+          "trades": 4
+        },
+        {
+          "date": "2026-05-13",
+          "net": -437.27695215026984,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-14",
+          "net": -2208.809969731219,
+          "trades": 5
+        },
+        {
+          "date": "2026-05-15",
+          "net": -906.2225063944169,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-18",
+          "net": -421.07750088783683,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-19",
+          "net": -837.8576917546911,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-20",
+          "net": -898.1247816669802,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-21",
+          "net": -821.3274226451126,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-25",
+          "net": -481.1934311710573,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-26",
+          "net": -407.1616930907982,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-27",
+          "net": -812.4358064580313,
+          "trades": 2
+        },
+        {
+          "date": "2026-05-28",
+          "net": -347.7984498365602,
+          "trades": 1
+        },
+        {
+          "date": "2026-05-31",
+          "net": -233.7984498366184,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-01",
+          "net": -878.5244584145798,
+          "trades": 2
+        },
+        {
+          "date": "2026-06-02",
+          "net": -396.1784016166999,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-03",
+          "net": -473.04903107558255,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-04",
+          "net": -473.52067294734,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-09",
+          "net": -469.330476065019,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-17",
+          "net": -1406.0321298841181,
+          "trades": 3
+        },
+        {
+          "date": "2026-06-23",
+          "net": -496.91404269312994,
+          "trades": 1
+        },
+        {
+          "date": "2026-06-29",
+          "net": -459.9628900136025,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-01",
+          "net": -459.2580357318437,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-05",
+          "net": -456.36549624317905,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-06",
+          "net": -452.6030326372946,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-08",
+          "net": -449.5766682708176,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-09",
+          "net": -449.25756367528084,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-10",
+          "net": -391.79844983661116,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-15",
+          "net": -446.17930556728345,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-16",
+          "net": -440.83327137114355,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-22",
+          "net": -444.97216289728954,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-23",
+          "net": -438.03677218959245,
+          "trades": 1
+        },
+        {
+          "date": "2026-07-29",
+          "net": -930.2839885270548,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-04",
+          "net": -867.6284684154241,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-12",
+          "net": -428.6532403852284,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-17",
+          "net": -428.5317396680068,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-18",
+          "net": -494.5246125314745,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-20",
+          "net": -396.472387725968,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-24",
+          "net": -848.3802265089558,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-25",
+          "net": -703.9147507100538,
+          "trades": 2
+        },
+        {
+          "date": "2026-08-26",
+          "net": -388.0182574081072,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-27",
+          "net": -388.69694662925843,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-28",
+          "net": -392.9201047343353,
+          "trades": 1
+        },
+        {
+          "date": "2026-08-31",
+          "net": -770.5576235705526,
+          "trades": 2
+        },
+        {
+          "date": "2026-09-02",
+          "net": -422.796592396692,
+          "trades": 1
+        },
+        {
+          "date": "2026-09-03",
+          "net": -801.2054955432964,
+          "trades": 2
+        },
+        {
+          "date": "2026-09-07",
+          "net": -768.1578406483868,
+          "trades": 2
+        },
+        {
+          "date": "2026-09-08",
+          "net": -377.85333341525075,
+          "trades": 1
+        },
+        {
+          "date": "2026-09-21",
+          "net": -411.2450357058145,
+          "trades": 1
+        },
+        {
+          "date": "2026-09-30",
+          "net": -411.01442955724445,
+          "trades": 1
+        },
+        {
+          "date": "2026-10-02",
+          "net": -408.90876908927424,
+          "trades": 1
+        },
+        {
+          "date": "2026-10-12",
+          "net": -408.73656604102206,
+          "trades": 1
+        },
+        {
+          "date": "2026-10-13",
+          "net": -404.54595977672597,
+          "trades": 1
+        }
+      ],
+      "monthly": {
+        "2026-04": {
+          "net": -11847.41299478844,
+          "days": 11,
+          "losing_days": 11,
+          "mean_per_day": -1077.0375449807673
+        },
+        "2026-05": {
+          "net": -15647.777690337378,
+          "days": 20,
+          "losing_days": 20,
+          "mean_per_day": -782.3888845168689
+        },
+        "2026-06": {
+          "net": -5053.512102710071,
+          "days": 8,
+          "losing_days": 8,
+          "mean_per_day": -631.6890128387589
+        },
+        "2026-07": {
+          "net": -5359.164746947391,
+          "days": 11,
+          "losing_days": 11,
+          "mean_per_day": -487.19679517703554
+        },
+        "2026-08": {
+          "net": -6108.298358287364,
+          "days": 11,
+          "losing_days": 11,
+          "mean_per_day": -555.2998507533968
+        },
+        "2026-09": {
+          "net": -3192.272727266685,
+          "days": 6,
+          "losing_days": 6,
+          "mean_per_day": -532.0454545444475
+        },
+        "2026-10": {
+          "net": -1222.1912949070222,
+          "days": 3,
+          "losing_days": 3,
+          "mean_per_day": -407.39709830234074
+        }
+      },
+      "limitations": [
+        "Daily P&L is grouped by the trade's exit time in UTC; broker-day boundaries may differ.",
+        "The target is a soft objective and is reported as a historical count of days that reached it, never as a promise.",
+        "A small number of trading days cannot establish a daily-profit edge."
+      ],
+      "volatility_regime": {
+        "available": true,
+        "method": "ATR(14) terciles over the window (low/mid/high volatility)",
+        "atr_period": 14,
+        "regimes": {
+          "low_volatility": {
+            "trades": 36,
+            "net": -15415.98862618809,
+            "mean": -428.22190628300245,
+            "win_rate": 0.0,
+            "profit_factor": 0.0
+          },
+          "mid_volatility": {
+            "trades": 38,
+            "net": -16653.54989173445,
+            "mean": -438.2513129403802,
+            "win_rate": 0.0,
+            "profit_factor": 0.0
+          },
+          "high_volatility": {
+            "trades": 37,
+            "net": -16361.091397321814,
+            "mean": -442.1916593870761,
+            "win_rate": 0.0,
+            "profit_factor": 0.0
+          }
+        },
+        "trades_without_regime": 0
+      }
+    }
+  }
+}

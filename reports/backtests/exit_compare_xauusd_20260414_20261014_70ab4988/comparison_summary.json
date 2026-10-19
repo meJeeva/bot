@@ -1,0 +1,278 @@
+{
+  "report_type": "fibonacci_exit_policy_comparison",
+  "run_id": "exit_compare_xauusd_20260414_20261014_70ab4988",
+  "generated_at_utc": "2026-10-14T04:44:38.965474+00:00",
+  "symbol": "XAUUSD",
+  "server_time_offset_seconds": 10801,
+  "requested_start_utc": "2026-04-14T00:00:00+00:00",
+  "requested_end_utc": "2026-10-14T04:44:38.965474+00:00",
+  "out_of_sample_split_utc": "2026-08-20T05:43:15.275832+00:00",
+  "out_of_sample_fraction": 0.3,
+  "timeframes": [
+    "M1",
+    "M5",
+    "M15",
+    "M30",
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "start_equity": 100000.0,
+  "scenarios": [
+    {
+      "scenario": "baseline",
+      "label": "Stop-only (no take profit)",
+      "policy": {
+        "kind": "stop_only",
+        "extension_ratio": null,
+        "name": "baseline_stop_only"
+      },
+      "overall_full_window": {
+        "trade_count": 481,
+        "closed_trades": 474,
+        "target_hits": 0,
+        "stop_hits": 474,
+        "end_of_data_positions": 7,
+        "other_exits": 0,
+        "win_count": 0,
+        "loss_count": 474,
+        "win_rate": 0.0,
+        "target_hit_rate": 0.0,
+        "gross_pnl_closed": -138545.88700000008,
+        "net_pnl_closed": -153645.34100000007,
+        "gross_pnl_all_trades": -37347.224100000014,
+        "net_pnl_all_trades": -52446.67810000002,
+        "end_of_data_mark_pnl": 101198.66290000005,
+        "profit_factor": 0.0,
+        "expectancy": -324.14628902953604,
+        "average_win": null,
+        "average_loss": -324.14628902953604,
+        "average_holding_bars": 410.9324894514768,
+        "average_rr_ratio": null,
+        "max_drawdown": null,
+        "max_drawdown_percent": null,
+        "cost_price_per_round_trip": 0.46
+      }
+    },
+    {
+      "scenario": "fib_extension_1.272",
+      "label": "Take profit at Fibonacci 1.272 extension",
+      "policy": {
+        "kind": "fib_extension",
+        "extension_ratio": 1.272,
+        "name": "fib_extension_1.272"
+      },
+      "overall_full_window": {
+        "trade_count": 803,
+        "closed_trades": 801,
+        "target_hits": 296,
+        "stop_hits": 505,
+        "end_of_data_positions": 2,
+        "other_exits": 0,
+        "win_count": 296,
+        "loss_count": 505,
+        "win_rate": 0.36953807740324596,
+        "target_hit_rate": 0.36953807740324596,
+        "gross_pnl_closed": 11487.989914399477,
+        "net_pnl_closed": -20415.503285600524,
+        "gross_pnl_all_trades": 12108.588114399443,
+        "net_pnl_all_trades": -19794.905085600556,
+        "end_of_data_mark_pnl": 620.5981999999664,
+        "profit_factor": 0.9021702749362706,
+        "expectancy": -25.487519707366445,
+        "average_win": 636.0423892378392,
+        "average_loss": -413.23574356435824,
+        "average_holding_bars": 14.803995006242197,
+        "average_rr_ratio": 1.9082444404579375,
+        "max_drawdown": null,
+        "max_drawdown_percent": null,
+        "cost_price_per_round_trip": 0.46
+      }
+    },
+    {
+      "scenario": "fib_extension_1.618",
+      "label": "Take profit at Fibonacci 1.618 extension",
+      "policy": {
+        "kind": "fib_extension",
+        "extension_ratio": 1.618,
+        "name": "fib_extension_1.618"
+      },
+      "overall_full_window": {
+        "trade_count": 803,
+        "closed_trades": 801,
+        "target_hits": 235,
+        "stop_hits": 566,
+        "end_of_data_positions": 2,
+        "other_exits": 0,
+        "win_count": 235,
+        "loss_count": 566,
+        "win_rate": 0.2933832709113608,
+        "target_hit_rate": 0.2933832709113608,
+        "gross_pnl_closed": 14545.538760799254,
+        "net_pnl_closed": -17346.21523920075,
+        "gross_pnl_all_trades": 15158.082560799223,
+        "net_pnl_all_trades": -16733.67143920078,
+        "end_of_data_mark_pnl": 612.5437999999672,
+        "profit_factor": 0.9255070940653859,
+        "expectancy": -21.655699424720034,
+        "average_win": 917.0683483438305,
+        "average_loss": -411.4086167844539,
+        "average_holding_bars": 20.451935081148566,
+        "average_rr_ratio": 2.6993235099535604,
+        "max_drawdown": null,
+        "max_drawdown_percent": null,
+        "cost_price_per_round_trip": 0.46
+      }
+    }
+  ],
+  "take_profit_contract": {
+    "baseline": "stop-only; no take profit (existing behaviour)",
+    "fib_extension_1.272": "take profit at the setup's own Fibonacci extension_levels[1.272], computed by the strategy from the confirmed swing pair",
+    "fib_extension_1.618": "take profit at the setup's own Fibonacci extension_levels[1.618]",
+    "entry_and_stop": "unchanged (confirming-candle close entry; structural stop)"
+  },
+  "same_candle_handling": "When a candle's range contains both the stop and the target, the stop is presumed hit first (conservative). The only refinement is exact-tiling lower-timeframe (M1) evidence: the target is recorded first only when the M1 bars inside the candle prove it. Missing/partial M1 coverage (e.g. the early six-month window) falls back to the conservative stop-first assumption.",
+  "intrabar_evidence": {
+    "available": true,
+    "lower_timeframe_seconds": 60,
+    "lower_candle_count": 100084,
+    "coverage": [
+      1782803100,
+      1791963780
+    ],
+    "note": "M1 bars are used only to order a stop and a target that fall in the same higher-timeframe candle. For the M1 timeframe itself no lower resolution exists, so stop-first is always used there."
+  },
+  "transaction_costs": {
+    "model": "net = gross - cost_price * volume (round-trip price cost)",
+    "reliable_historical_data": false,
+    "reliable_data_note": "The OHLC dataset carries no spread, commission or swap series, so costs cannot be measured historically. Values below are clearly labelled assumptions, not measurements.",
+    "central_cost_price": 0.46,
+    "sensitivity_cost_price": [
+      0.0,
+      0.1,
+      0.3,
+      0.46,
+      0.5,
+      1.0
+    ],
+    "current_broker_spread_points_at_run": 46,
+    "point": 0.01,
+    "current_spread_price_reference": 0.46
+  },
+  "out_of_sample": {
+    "method": "A separate evaluator run over the chronological tail [split, end]; the in-sample block is the full-window run filtered to entries before the split. Targets (1.272 / 1.618) were fixed before any period was evaluated, so no target was chosen on the out-of-sample period.",
+    "split_utc": "2026-08-20T05:43:15.275832+00:00"
+  },
+  "data_quality": {
+    "M1": {
+      "available": true,
+      "candle_count": 100084,
+      "coverage_complete": false,
+      "first_candle_utc": "2026-06-30T04:04:59+00:00",
+      "last_candle_utc": "2026-10-14T04:42:59+00:00",
+      "data_warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 78 gap(s) in the historical candle timestamps (largest about 3179 M1 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles.",
+        "Historical data starts at 2026-06-30T04:04:59+00:00; the terminal had no candles before that, so the replay begins there."
+      ]
+    },
+    "M5": {
+      "available": true,
+      "candle_count": 34534,
+      "coverage_complete": true,
+      "first_candle_utc": "2026-04-14T00:04:59+00:00",
+      "last_candle_utc": "2026-10-14T04:34:59+00:00",
+      "data_warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 131 gap(s) in the historical candle timestamps (largest about 635 M5 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    },
+    "M15": {
+      "available": true,
+      "candle_count": 11512,
+      "coverage_complete": true,
+      "first_candle_utc": "2026-04-14T00:14:59+00:00",
+      "last_candle_utc": "2026-10-14T04:14:59+00:00",
+      "data_warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 131 gap(s) in the historical candle timestamps (largest about 211 M15 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    },
+    "M30": {
+      "available": true,
+      "candle_count": 5757,
+      "coverage_complete": true,
+      "first_candle_utc": "2026-04-14T00:29:59+00:00",
+      "last_candle_utc": "2026-10-14T03:59:59+00:00",
+      "data_warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 131 gap(s) in the historical candle timestamps (largest about 105 M30 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    },
+    "H1": {
+      "available": true,
+      "candle_count": 2879,
+      "coverage_complete": true,
+      "first_candle_utc": "2026-04-14T00:59:59+00:00",
+      "last_candle_utc": "2026-10-14T02:59:59+00:00",
+      "data_warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 131 gap(s) in the historical candle timestamps (largest about 52 H1 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    },
+    "H4": {
+      "available": true,
+      "candle_count": 786,
+      "coverage_complete": true,
+      "first_candle_utc": "2026-04-14T00:59:59+00:00",
+      "last_candle_utc": "2026-10-13T20:59:59+00:00",
+      "data_warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 26 gap(s) in the historical candle timestamps (largest about 12 H4 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    },
+    "D1": {
+      "available": true,
+      "candle_count": 130,
+      "coverage_complete": true,
+      "first_candle_utc": "2026-04-14T20:59:59+00:00",
+      "last_candle_utc": "2026-10-12T20:59:59+00:00",
+      "data_warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 26 gap(s) in the historical candle timestamps (largest about 2 D1 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    }
+  },
+  "data_notes": [
+    "M1: no M1 history for chunk 1 [2026-04-14T00:00:00+00:00 .. 2026-04-24T10:00:00+00:00) (empty_candle_data); the terminal holds no bars there.",
+    "M1: no M1 history for chunk 2 [2026-04-24T10:00:00+00:00 .. 2026-05-04T20:00:00+00:00) (empty_candle_data); the terminal holds no bars there.",
+    "M1: no M1 history for chunk 3 [2026-05-04T20:00:00+00:00 .. 2026-05-15T06:00:00+00:00) (empty_candle_data); the terminal holds no bars there.",
+    "M1: no M1 history for chunk 4 [2026-05-15T06:00:00+00:00 .. 2026-05-25T16:00:00+00:00) (empty_candle_data); the terminal holds no bars there.",
+    "M1: no M1 history for chunk 5 [2026-05-25T16:00:00+00:00 .. 2026-06-05T02:00:00+00:00) (empty_candle_data); the terminal holds no bars there.",
+    "M1: no M1 history for chunk 6 [2026-06-05T02:00:00+00:00 .. 2026-06-15T12:00:00+00:00) (empty_candle_data); the terminal holds no bars there.",
+    "M1: no M1 history for chunk 7 [2026-06-15T12:00:00+00:00 .. 2026-06-25T22:00:00+00:00) (empty_candle_data); the terminal holds no bars there."
+  ],
+  "metric_notes": {
+    "win_rate": "wins / closed trades, where a win is a closed trade with a positive net P&L at the central cost.",
+    "profit_factor": "gross net profit of winners / gross net loss of losers, closed trades only; null when there are no losing closed trades.",
+    "expectancy": "mean net P&L per closed trade.",
+    "max_drawdown": "realized peak-to-trough of the closed-trade equity curve; it excludes floating P&L of open positions and is therefore a lower bound on true drawdown.",
+    "average_rr_ratio": "mean reward/risk of closed trades; only defined when a target exists (null for the stop-only baseline).",
+    "end_of_data_positions": "positions still open at the end of the data, marked to the final close; excluded from win rate, profit factor and expectancy and reported separately.",
+    "overall_row": "the 'ALL' rows sum trades across timeframes; max drawdown is reported per timeframe only because each timeframe ran as an independent simulated account."
+  },
+  "reproducibility": "Reports are deterministic for a fixed dataset and clock; only generated_at_utc varies.",
+  "trading_enabled": false,
+  "read_only": true,
+  "order_submission": "Not called. No MetaTrader order-execution function is imported or invoked anywhere in the backtest comparison path.",
+  "output_files": {
+    "comparison_summary_json": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\exit_compare_xauusd_20260414_20261014_70ab4988\\comparison_summary.json",
+    "comparison_summary_csv": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\exit_compare_xauusd_20260414_20261014_70ab4988\\comparison_summary.csv",
+    "cost_sensitivity_csv": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\exit_compare_xauusd_20260414_20261014_70ab4988\\cost_sensitivity.csv",
+    "per_scenario_json": {
+      "baseline": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\exit_compare_xauusd_20260414_20261014_70ab4988\\baseline.json",
+      "fib_extension_1.272": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\exit_compare_xauusd_20260414_20261014_70ab4988\\fib_extension_1.272.json",
+      "fib_extension_1.618": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\exit_compare_xauusd_20260414_20261014_70ab4988\\fib_extension_1.618.json"
+    }
+  }
+}

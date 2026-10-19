@@ -1,0 +1,212 @@
+{
+  "report_type": "fibonacci_xauusd_backtest",
+  "run_id": "xauusd_20260414_20261014_4eea7638",
+  "generated_at_utc": "2026-10-14T04:07:35.735519+00:00",
+  "generated_at_ist": "2026-10-14T09:37:35.735519+05:30",
+  "symbol_requested": "XAUUSD",
+  "symbol_resolved": "XAUUSD",
+  "data_source": "MetaTrader5 desktop terminal via app.mt5.market_data.read_candles_range (broker-server-local bar timestamps corrected to UTC with the measured server offset)",
+  "server_time_offset_seconds": 10802,
+  "time_convention": "broker_server_local",
+  "utc_offset_measured": true,
+  "requested_start_utc": "2026-04-14T00:00:00+00:00",
+  "requested_end_utc": "2026-10-14T04:07:35.735519+00:00",
+  "requested_start_ist": "2026-04-14T05:30:00+05:30",
+  "requested_end_ist": "2026-10-14T09:37:35.735519+05:30",
+  "timeframes_requested": [
+    "M1",
+    "M5",
+    "M15",
+    "M30",
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "timeframes_processed": [
+    "M1",
+    "M5",
+    "M15",
+    "M30",
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "timeframe_count": 7,
+  "strategy_fingerprint": "4eea76386812",
+  "strategy_config": {
+    "swing_config": {
+      "left_candles": 3,
+      "right_candles": 3,
+      "min_swing_size_points": null,
+      "point_value": 0.01,
+      "equal_highs_tolerance_points": 0.0
+    },
+    "zone_config": {
+      "primary_level": 0.618,
+      "zone_lower_ratio": 0.5,
+      "zone_upper_ratio": 0.618,
+      "zone_tolerance_points": 0.0,
+      "point_value": 0.01
+    },
+    "confirmation_config": {
+      "min_wick_to_body_ratio": 0.5,
+      "min_wick_to_range_ratio": 0.3,
+      "require_close_in_zone": true,
+      "require_close_direction": true
+    },
+    "expiration_config": {
+      "max_candles": 100,
+      "max_hours": null
+    },
+    "invalidation_config": {
+      "use_structural_invalidation": true,
+      "require_closed_candle_breach": true,
+      "structural_buffer_points": 0.0,
+      "point_value": 0.01
+    },
+    "evaluation_interval_seconds": 5.0
+  },
+  "risk_policy": {
+    "risk_per_trade_percent": 0.5,
+    "max_risk_per_trade_percent": 1.0,
+    "max_aggregate_risk_percent": 5.0,
+    "max_open_positions": 3,
+    "max_daily_loss_percent": 5.0,
+    "max_daily_drawdown_percent": 10.0,
+    "max_consecutive_losses": null,
+    "cost_allowance_percent": 0.0,
+    "min_stop_distance_points": 100.0,
+    "max_stop_distance_points": 5000.0,
+    "max_quote_age_seconds": 10.0,
+    "max_signal_age_minutes": 60.0,
+    "max_spread_points": 150.0,
+    "max_price_drift_points": 300.0,
+    "tp_policy": "none",
+    "fixed_rr": 2.0,
+    "allowed_symbols": [
+      "XAUUSD"
+    ],
+    "allowed_timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "block_on_external_positions": false,
+    "daily_reset": "broker_midnight",
+    "filling_policy": "auto",
+    "config_fingerprint": "ef08c4115688"
+  },
+  "method": {
+    "replay": "Each timeframe was replayed one completed candle at a time via ReplayCandleSource + StrategyEngine.evaluate_timeframe_once; the strategy only ever saw candles[:i], so there is no look-ahead.",
+    "completed_candles_only": "build_replay_dataset excluded every still-forming bar before replay; each per-timeframe report carries all_candles_closed.",
+    "swing_confirmation": "Swing pivots require the configured 3 left and 3 right closed candles (existing detector); a setup becomes actionable only after both swings are confirmed.",
+    "trade_evaluation": "The existing app.backtest.evaluator.BacktestEngine was run unchanged over the same candles."
+  },
+  "app_version": "0.1.0",
+  "trading_enabled": false,
+  "read_only": true,
+  "order_submission": "Not called. No MetaTrader order-execution function is imported or invoked anywhere in the backtest path.",
+  "connection_warnings": [
+    "The requested end (2026-10-15T00:00:00+00:00) is in the future; it was clamped to the current time (2026-10-14T04:07:35.735519+00:00)."
+  ],
+  "reproducibility": "Reports are byte-for-byte deterministic for a fixed dataset and clock. A live run differs only by the second-level jitter of the measured broker server-clock offset and by the end time clamped to the current time, which can shift the newest bars by a few seconds.",
+  "timeframes": [
+    {
+      "timeframe": "M1",
+      "status": "evaluated",
+      "candle_count": 100047,
+      "confirmed_bullish": 278,
+      "confirmed_bearish": 266,
+      "trade_count": 335,
+      "profitability_established": true,
+      "error": null
+    },
+    {
+      "timeframe": "M5",
+      "status": "evaluated",
+      "candle_count": 34527,
+      "confirmed_bullish": 118,
+      "confirmed_bearish": 91,
+      "trade_count": 64,
+      "profitability_established": true,
+      "error": null
+    },
+    {
+      "timeframe": "M15",
+      "status": "evaluated",
+      "candle_count": 11510,
+      "confirmed_bullish": 31,
+      "confirmed_bearish": 45,
+      "trade_count": 46,
+      "profitability_established": true,
+      "error": null
+    },
+    {
+      "timeframe": "M30",
+      "status": "evaluated",
+      "candle_count": 5756,
+      "confirmed_bullish": 27,
+      "confirmed_bearish": 26,
+      "trade_count": 31,
+      "profitability_established": true,
+      "error": null
+    },
+    {
+      "timeframe": "H1",
+      "status": "evaluated",
+      "candle_count": 2879,
+      "confirmed_bullish": 9,
+      "confirmed_bearish": 9,
+      "trade_count": 5,
+      "profitability_established": true,
+      "error": null
+    },
+    {
+      "timeframe": "H4",
+      "status": "evaluated",
+      "candle_count": 786,
+      "confirmed_bullish": 2,
+      "confirmed_bearish": 3,
+      "trade_count": 0,
+      "profitability_established": false,
+      "error": null
+    },
+    {
+      "timeframe": "D1",
+      "status": "evaluated",
+      "candle_count": 130,
+      "confirmed_bullish": 0,
+      "confirmed_bearish": 0,
+      "trade_count": 0,
+      "profitability_established": false,
+      "error": null
+    }
+  ],
+  "output_dir": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638",
+  "output_files": {
+    "summary_json": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\summary.json",
+    "summary_csv": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\summary.csv",
+    "per_timeframe_json": {
+      "M1": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M1.json",
+      "M5": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M5.json",
+      "M15": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M15.json",
+      "M30": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M30.json",
+      "H1": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\H1.json",
+      "H4": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\H4.json",
+      "D1": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\D1.json"
+    },
+    "per_timeframe_csv": {
+      "M1": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M1.csv",
+      "M5": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M5.csv",
+      "M15": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M15.csv",
+      "M30": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\M30.csv",
+      "H1": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\H1.csv",
+      "H4": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\H4.csv",
+      "D1": "E:\\TP\\fibonacci-mt5-bot\\reports\\backtests\\xauusd_20260414_20261014_4eea7638\\D1.csv"
+    }
+  }
+}

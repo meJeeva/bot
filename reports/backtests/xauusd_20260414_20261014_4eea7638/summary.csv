@@ -1,0 +1,8 @@
+timeframe,status,candle_count,first_candle_utc,last_candle_utc,coverage_complete,all_candles_closed,gap_count,largest_gap_bars,missing_bars_estimate,setups_created,confirmed_bullish,confirmed_bearish,confirmed_total,confirmed_buy,confirmed_sell,invalidated,expired,superseded_by_new_swing_pair,retired_no_swing_pair,open_at_end,trade_count,win_rate,profit_factor,total_net_pnl,profitability_established,error
+M1,evaluated,100047,2026-06-30T04:04:58+00:00,2026-10-14T04:05:58+00:00,False,True,78,3179,52595,15340,278,266,544,278,266,4730,0,7961,2105,0,335,0.009,0.3536,-49264.0,True,
+M5,evaluated,34527,2026-04-14T00:04:58+00:00,2026-10-14T03:59:58+00:00,True,True,131,635,18225,5353,118,91,209,118,91,1601,0,2796,747,0,64,0.0469,2.9725,50022.13,True,
+M15,evaluated,11510,2026-04-14T00:14:58+00:00,2026-10-14T03:44:58+00:00,True,True,131,211,6073,1748,31,45,76,31,45,501,0,912,259,0,46,0.0217,0.0005,-20083.99,True,
+M30,evaluated,5756,2026-04-14T00:29:58+00:00,2026-10-14T03:29:58+00:00,True,True,131,105,3035,873,27,26,53,27,26,242,0,445,133,0,31,0.0,0.0,-14409.21,True,
+H1,evaluated,2879,2026-04-14T00:59:58+00:00,2026-10-14T02:59:58+00:00,True,True,131,52,1516,446,9,9,18,9,9,132,0,222,73,1,5,0.0,0.0,-2474.5,True,
+H4,evaluated,786,2026-04-14T00:59:58+00:00,2026-10-13T20:59:58+00:00,True,True,26,12,312,115,2,3,5,2,3,28,0,62,19,1,0,,,0,False,
+D1,evaluated,130,2026-04-14T20:59:58+00:00,2026-10-12T20:59:58+00:00,True,True,26,2,52,20,0,0,0,0,0,6,0,10,3,1,0,,,0,False,

@@ -1,0 +1,32 @@
+E:/TP/fibonacci-mt5-bot/frontend/src\components\CandleChart.tsx:64: `${new Date(time * 1_000).toISOString().replace('T', ' ').slice(0, 19)} UTC`,
+E:/TP/fibonacci-mt5-bot/frontend/src\components\EventLogPanel.tsx:118: const timeA = a.timestamp ? new Date(a.timestamp).getTime() : -Infinity;
+E:/TP/fibonacci-mt5-bot/frontend/src\components\EventLogPanel.tsx:119: const timeB = b.timestamp ? new Date(b.timestamp).getTime() : -Infinity;
+E:/TP/fibonacci-mt5-bot/frontend/src\components\replayForm.ts:35: const date = new Date(iso);
+E:/TP/fibonacci-mt5-bot/frontend/src\components\replayForm.ts:50: const date = new Date(value);
+E:/TP/fibonacci-mt5-bot/frontend/src\components\replayForm.ts:54: return date.toISOString();
+E:/TP/fibonacci-mt5-bot/frontend/src\components\replayForm.ts:66: now: Date = new Date(),
+E:/TP/fibonacci-mt5-bot/frontend/src\components\replayForm.ts:71: return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+E:/TP/fibonacci-mt5-bot/frontend/src\components\ReplaySection.tsx:87: (new Date(window_.end).getTime() - new Date(window_.start).getTime()) / (step * 1_000),
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:21: expect(new Date(back as string).getTime()).toBe(new Date(iso).setSeconds(0, 0));
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:28: expect(new Date(back as string).getMinutes()).toBe(
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:29: new Date('2026-01-15T16:15').getMinutes(),
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:41: const now = new Date('2026-10-13T10:07:31.000Z');
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:44: const start = new Date(window.start).getTime();
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:45: const end = new Date(window.end).getTime();
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:53: const now = new Date('2026-10-13T10:07:31.000Z');
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\replayForm.test.ts:57: expect(new Date(h1.end).getTime() % (TIMEFRAME_SECONDS.H1 * 1_000)).toBe(0);
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\ReplaySection.test.tsx:166: expect(new Date(request.start_utc).toISOString()).toBe(request.start_utc);
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\ReplaySection.test.tsx:167: expect(new Date(request.end_utc).getTime()).toBeGreaterThan(
+E:/TP/fibonacci-mt5-bot/frontend/src\components\__tests__\ReplaySection.test.tsx:168: new Date(request.start_utc).getTime(),
+E:/TP/fibonacci-mt5-bot/frontend/src\hooks\useMarketStream.ts:56: setLastMessageAt(new Date().toISOString());
+E:/TP/fibonacci-mt5-bot/frontend/src\hooks\useMarketStream.ts:61: setLastMessageAt(new Date().toISOString());
+E:/TP/fibonacci-mt5-bot/frontend/src\services\dashboardState.ts:135: const parsed = new Date(iso);
+E:/TP/fibonacci-mt5-bot/frontend/src\services\dashboardState.ts:139: return parsed.toLocaleTimeString();
+E:/TP/fibonacci-mt5-bot/frontend/src\services\format.ts:74: const parsed = new Date(iso);
+E:/TP/fibonacci-mt5-bot/frontend/src\services\format.ts:78: return parsed.toLocaleTimeString(TIMESTAMP_LOCALE, { timeZone: TIMESTAMP_TIME_ZONE });
+E:/TP/fibonacci-mt5-bot/frontend/src\services\format.ts:86: const parsed = new Date(iso);
+E:/TP/fibonacci-mt5-bot/frontend/src\services\format.ts:90: return parsed.toLocaleString(TIMESTAMP_LOCALE, { timeZone: TIMESTAMP_TIME_ZONE });
+E:/TP/fibonacci-mt5-bot/frontend/src\services\format.ts:101: const parsed = new Date(candle.open_time_utc);
+E:/TP/fibonacci-mt5-bot/frontend/src\services\format.ts:112: return value.toLocaleString();
+E:/TP/fibonacci-mt5-bot/frontend/src\test\fixtures.ts:51: overrides.open_time_broker ?? new Date((time + BROKER_OFFSET_SECONDS) * 1_000).toISOString();
+E:/TP/fibonacci-mt5-bot/frontend/src\test\fixtures.ts:52: const openTimeUtc = overrides.open_time_utc ?? new Date(time * 1_000).toISOString();

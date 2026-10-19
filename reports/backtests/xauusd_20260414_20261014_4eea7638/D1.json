@@ -1,0 +1,1661 @@
+{
+  "timeframe": "D1",
+  "seconds": 86400,
+  "requested_start_utc": "2026-04-14T00:00:00+00:00",
+  "requested_end_utc": "2026-10-14T04:07:35.735519+00:00",
+  "requested_start_ist": "2026-04-14T05:30:00+05:30",
+  "requested_end_ist": "2026-10-14T09:37:35.735519+05:30",
+  "server_time_offset_seconds": 10802,
+  "strategy_fingerprint": "4eea76386812",
+  "read_only": true,
+  "trading_enabled": false,
+  "status": "evaluated",
+  "error": null,
+  "candle_count": 130,
+  "first_candle_utc": "2026-04-14T20:59:58+00:00",
+  "last_candle_utc": "2026-10-12T20:59:58+00:00",
+  "first_candle_ist": "2026-04-15T02:29:58+05:30",
+  "last_candle_ist": "2026-10-13T02:29:58+05:30",
+  "coverage_complete": true,
+  "all_candles_closed": true,
+  "data_gaps": {
+    "gap_count": 26,
+    "largest_gap_bars": 2,
+    "missing_bars_estimate": 52
+  },
+  "dataset_warnings": [
+    "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+    "Detected 26 gap(s) in the historical candle timestamps (largest about 2 D1 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+  ],
+  "load_warnings": [],
+  "setups_created": 20,
+  "confirmed_bullish": 0,
+  "confirmed_bearish": 0,
+  "confirmed_total": 0,
+  "lifecycle_counts": {
+    "invalidated": 6,
+    "open_at_end": 1,
+    "retired_no_swing_pair": 3,
+    "superseded_by_new_swing_pair": 10
+  },
+  "setups": [
+    {
+      "setup_id": "D1:1777852800:1778544000",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 4500.98,
+        "candle_time": 1777852800,
+        "candle_utc": "2026-05-03T20:59:58+00:00",
+        "candle_ist": "2026-05-04T02:29:58+05:30",
+        "confirmation_utc": "2026-05-06T20:59:58+00:00",
+        "confirmation_ist": "2026-05-07T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4773.42,
+        "candle_time": 1778544000,
+        "candle_utc": "2026-05-11T20:59:58+00:00",
+        "candle_ist": "2026-05-12T02:29:58+05:30",
+        "confirmation_utc": "2026-05-14T20:59:58+00:00",
+        "confirmation_ist": "2026-05-15T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4605.0520799999995,
+        "upper": 4637.2,
+        "primary_level": 4605.0520799999995
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4669.34792,
+          "0.500": 4637.2,
+          "0.618": 4605.0520799999995,
+          "0.786": 4559.28216,
+          "1.000": 4500.98
+        },
+        "extension": {
+          "1.272": 4847.52368,
+          "1.618": 4941.787920000001
+        }
+      },
+      "first_seen_index": 22,
+      "first_seen_candle_utc": "2026-05-14T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-05-15T02:29:58+05:30",
+      "last_seen_index": 28,
+      "last_evaluated_candle_utc": "2026-05-18T20:59:58+00:00",
+      "last_state": "invalidated",
+      "outcome": "invalidated",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 4500.98000 -> swing high 4773.42000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "invalidated",
+          "reason": "Price breached below the swing low invalidation boundary 4500.98000 on a completed candle.",
+          "candle_utc": "2026-05-18T20:59:58+00:00",
+          "candle_ist": "2026-05-19T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1779235200:1778544000",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 4453.52,
+        "candle_time": 1779235200,
+        "candle_utc": "2026-05-19T20:59:58+00:00",
+        "candle_ist": "2026-05-20T02:29:58+05:30",
+        "confirmation_utc": "2026-05-24T20:59:58+00:00",
+        "confirmation_ist": "2026-05-25T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4773.42,
+        "candle_time": 1778544000,
+        "candle_utc": "2026-05-11T20:59:58+00:00",
+        "candle_ist": "2026-05-12T02:29:58+05:30",
+        "confirmation_utc": "2026-05-14T20:59:58+00:00",
+        "confirmation_ist": "2026-05-15T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4613.47,
+        "upper": 4651.2182,
+        "primary_level": 4651.2182
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4575.7218,
+          "0.500": 4613.47,
+          "0.618": 4651.2182,
+          "0.786": 4704.9614,
+          "1.000": 4773.42
+        },
+        "extension": {
+          "1.272": 4366.507200000001,
+          "1.618": 4255.821800000001
+        }
+      },
+      "first_seen_index": 28,
+      "first_seen_candle_utc": "2026-05-24T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-05-25T02:29:58+05:30",
+      "last_seen_index": 34,
+      "last_evaluated_candle_utc": "2026-05-31T20:59:58+00:00",
+      "last_state": "no_setup",
+      "outcome": "retired_no_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 4453.52000 -> swing high 4773.42000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "no_setup",
+          "reason": "No confirmed swing pair remains; setup retired.",
+          "candle_utc": null,
+          "candle_ist": null
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1779926400:1780012800",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 4366.52,
+        "candle_time": 1779926400,
+        "candle_utc": "2026-05-27T20:59:58+00:00",
+        "candle_ist": "2026-05-28T02:29:58+05:30",
+        "confirmation_utc": "2026-06-01T20:59:58+00:00",
+        "confirmation_ist": "2026-06-02T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4595.18,
+        "candle_time": 1780012800,
+        "candle_utc": "2026-05-28T20:59:58+00:00",
+        "candle_ist": "2026-05-29T02:29:58+05:30",
+        "confirmation_utc": "2026-06-02T20:59:58+00:00",
+        "confirmation_ist": "2026-06-03T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4453.86812,
+        "upper": 4480.85,
+        "primary_level": 4453.86812
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4507.831880000001,
+          "0.500": 4480.85,
+          "0.618": 4453.86812,
+          "0.786": 4415.453240000001,
+          "1.000": 4366.52
+        },
+        "extension": {
+          "1.272": 4657.3755200000005,
+          "1.618": 4736.4918800000005
+        }
+      },
+      "first_seen_index": 35,
+      "first_seen_candle_utc": "2026-06-02T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-06-03T02:29:58+05:30",
+      "last_seen_index": 44,
+      "last_evaluated_candle_utc": "2026-06-04T20:59:58+00:00",
+      "last_state": "invalidated",
+      "outcome": "invalidated",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 4366.52000 -> swing high 4595.18000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4453.86812, 4480.85000]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-06-03T20:59:58+00:00",
+          "candle_ist": "2026-06-04T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "invalidated",
+          "reason": "Price breached below the swing low invalidation boundary 4366.52000 on a completed candle.",
+          "candle_utc": "2026-06-04T20:59:58+00:00",
+          "candle_ist": "2026-06-05T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1781136000:1780012800",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 4023.74,
+        "candle_time": 1781136000,
+        "candle_utc": "2026-06-10T20:59:58+00:00",
+        "candle_ist": "2026-06-11T02:29:58+05:30",
+        "confirmation_utc": "2026-06-15T20:59:58+00:00",
+        "confirmation_ist": "2026-06-16T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4595.18,
+        "candle_time": 1780012800,
+        "candle_utc": "2026-05-28T20:59:58+00:00",
+        "candle_ist": "2026-05-29T02:29:58+05:30",
+        "confirmation_utc": "2026-06-02T20:59:58+00:00",
+        "confirmation_ist": "2026-06-03T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4309.46,
+        "upper": 4376.88992,
+        "primary_level": 4376.88992
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4242.0300799999995,
+          "0.500": 4309.46,
+          "0.618": 4376.88992,
+          "0.786": 4472.89184,
+          "1.000": 4595.18
+        },
+        "extension": {
+          "1.272": 3868.3083199999996,
+          "1.618": 3670.5900799999995
+        }
+      },
+      "first_seen_index": 44,
+      "first_seen_candle_utc": "2026-06-15T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-06-16T02:29:58+05:30",
+      "last_seen_index": 48,
+      "last_evaluated_candle_utc": "2026-06-18T20:59:58+00:00",
+      "last_state": "waiting_for_zone",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 4023.74000 -> swing high 4595.18000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4309.46000, 4376.88992]; waiting for a bearish rejection candle.",
+          "candle_utc": "2026-06-16T20:59:58+00:00",
+          "candle_ist": "2026-06-17T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "waiting_for_zone",
+          "reason": "Price left the entry zone without a qualifying rejection candle; waiting for a fresh entry.",
+          "candle_utc": "2026-06-18T20:59:58+00:00",
+          "candle_ist": "2026-06-19T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1781136000:1781654400",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 4023.74,
+        "candle_time": 1781136000,
+        "candle_utc": "2026-06-10T20:59:58+00:00",
+        "candle_ist": "2026-06-11T02:29:58+05:30",
+        "confirmation_utc": "2026-06-15T20:59:58+00:00",
+        "confirmation_ist": "2026-06-16T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4382.48,
+        "candle_time": 1781654400,
+        "candle_utc": "2026-06-16T20:59:58+00:00",
+        "candle_ist": "2026-06-17T02:29:58+05:30",
+        "confirmation_utc": "2026-06-21T20:59:58+00:00",
+        "confirmation_ist": "2026-06-22T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4160.778679999999,
+        "upper": 4203.11,
+        "primary_level": 4160.778679999999
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4245.44132,
+          "0.500": 4203.11,
+          "0.618": 4160.778679999999,
+          "0.786": 4100.510359999999,
+          "1.000": 4023.74
+        },
+        "extension": {
+          "1.272": 4480.057279999999,
+          "1.618": 4604.18132
+        }
+      },
+      "first_seen_index": 48,
+      "first_seen_candle_utc": "2026-06-21T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-06-22T02:29:58+05:30",
+      "last_seen_index": 53,
+      "last_evaluated_candle_utc": "2026-06-23T20:59:58+00:00",
+      "last_state": "invalidated",
+      "outcome": "invalidated",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 4023.74000 -> swing high 4382.48000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4160.77868, 4203.11000]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-06-22T20:59:58+00:00",
+          "candle_ist": "2026-06-23T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "invalidated",
+          "reason": "Price breached below the swing low invalidation boundary 4023.74000 on a completed candle.",
+          "candle_utc": "2026-06-23T20:59:58+00:00",
+          "candle_ist": "2026-06-24T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1782259200:1781654400",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 3958.96,
+        "candle_time": 1782259200,
+        "candle_utc": "2026-06-23T20:59:58+00:00",
+        "candle_ist": "2026-06-24T02:29:58+05:30",
+        "confirmation_utc": "2026-06-28T20:59:58+00:00",
+        "confirmation_ist": "2026-06-29T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4382.48,
+        "candle_time": 1781654400,
+        "candle_utc": "2026-06-16T20:59:58+00:00",
+        "candle_ist": "2026-06-17T02:29:58+05:30",
+        "confirmation_utc": "2026-06-21T20:59:58+00:00",
+        "confirmation_ist": "2026-06-22T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4170.719999999999,
+        "upper": 4220.69536,
+        "primary_level": 4220.69536
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4120.74464,
+          "0.500": 4170.719999999999,
+          "0.618": 4220.69536,
+          "0.786": 4291.84672,
+          "1.000": 4382.48
+        },
+        "extension": {
+          "1.272": 3843.76256,
+          "1.618": 3697.2246400000004
+        }
+      },
+      "first_seen_index": 53,
+      "first_seen_candle_utc": "2026-06-28T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-06-29T02:29:58+05:30",
+      "last_seen_index": 57,
+      "last_evaluated_candle_utc": "2026-07-01T20:59:58+00:00",
+      "last_state": "no_setup",
+      "outcome": "retired_no_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 3958.96000 -> swing high 4382.48000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "no_setup",
+          "reason": "No confirmed swing pair remains; setup retired.",
+          "candle_utc": null,
+          "candle_ist": null
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1782777600:1783296000",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 3942.48,
+        "candle_time": 1782777600,
+        "candle_utc": "2026-06-29T20:59:58+00:00",
+        "candle_ist": "2026-06-30T02:29:58+05:30",
+        "confirmation_utc": "2026-07-02T20:59:58+00:00",
+        "confirmation_ist": "2026-07-03T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4203.03,
+        "candle_time": 1783296000,
+        "candle_utc": "2026-07-05T20:59:58+00:00",
+        "candle_ist": "2026-07-06T02:29:58+05:30",
+        "confirmation_utc": "2026-07-08T20:59:58+00:00",
+        "confirmation_ist": "2026-07-09T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4042.0101,
+        "upper": 4072.755,
+        "primary_level": 4042.0101
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4103.4999,
+          "0.500": 4072.755,
+          "0.618": 4042.0101,
+          "0.786": 3998.2377,
+          "1.000": 3942.48
+        },
+        "extension": {
+          "1.272": 4273.8996,
+          "1.618": 4364.0499
+        }
+      },
+      "first_seen_index": 61,
+      "first_seen_candle_utc": "2026-07-08T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-07-09T02:29:58+05:30",
+      "last_seen_index": 70,
+      "last_evaluated_candle_utc": "2026-07-20T20:59:58+00:00",
+      "last_state": "waiting_for_confirmation",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 3942.48000 -> swing high 4203.03000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4042.01010, 4072.75500]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-07-09T20:59:58+00:00",
+          "candle_ist": "2026-07-10T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "waiting_for_zone",
+          "reason": "Price left the entry zone without a qualifying rejection candle; waiting for a fresh entry.",
+          "candle_utc": "2026-07-16T20:59:58+00:00",
+          "candle_ist": "2026-07-17T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4042.01010, 4072.75500]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-07-20T20:59:58+00:00",
+          "candle_ist": "2026-07-21T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1784246400:1783296000",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 3959.56,
+        "candle_time": 1784246400,
+        "candle_utc": "2026-07-16T20:59:58+00:00",
+        "candle_ist": "2026-07-17T02:29:58+05:30",
+        "confirmation_utc": "2026-07-21T20:59:58+00:00",
+        "confirmation_ist": "2026-07-22T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4203.03,
+        "candle_time": 1783296000,
+        "candle_utc": "2026-07-05T20:59:58+00:00",
+        "candle_ist": "2026-07-06T02:29:58+05:30",
+        "confirmation_utc": "2026-07-08T20:59:58+00:00",
+        "confirmation_ist": "2026-07-09T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4081.295,
+        "upper": 4110.02446,
+        "primary_level": 4110.02446
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4052.56554,
+          "0.500": 4081.295,
+          "0.618": 4110.02446,
+          "0.786": 4150.92742,
+          "1.000": 4203.03
+        },
+        "extension": {
+          "1.272": 3893.33616,
+          "1.618": 3809.0955400000003
+        }
+      },
+      "first_seen_index": 70,
+      "first_seen_candle_utc": "2026-07-21T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-07-22T02:29:58+05:30",
+      "last_seen_index": 73,
+      "last_evaluated_candle_utc": "2026-07-23T20:59:58+00:00",
+      "last_state": "waiting_for_confirmation",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 3959.56000 -> swing high 4203.03000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4081.29500, 4110.02446]; waiting for a bearish rejection candle.",
+          "candle_utc": "2026-07-22T20:59:58+00:00",
+          "candle_ist": "2026-07-23T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1784246400:1784678400",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 3959.56,
+        "candle_time": 1784246400,
+        "candle_utc": "2026-07-16T20:59:58+00:00",
+        "candle_ist": "2026-07-17T02:29:58+05:30",
+        "confirmation_utc": "2026-07-21T20:59:58+00:00",
+        "confirmation_ist": "2026-07-22T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4166.0,
+        "candle_time": 1784678400,
+        "candle_utc": "2026-07-21T20:59:58+00:00",
+        "candle_ist": "2026-07-22T02:29:58+05:30",
+        "confirmation_utc": "2026-07-26T20:59:58+00:00",
+        "confirmation_ist": "2026-07-27T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4038.42008,
+        "upper": 4062.7799999999997,
+        "primary_level": 4038.42008
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4087.13992,
+          "0.500": 4062.7799999999997,
+          "0.618": 4038.42008,
+          "0.786": 4003.73816,
+          "1.000": 3959.56
+        },
+        "extension": {
+          "1.272": 4222.15168,
+          "1.618": 4293.57992
+        }
+      },
+      "first_seen_index": 73,
+      "first_seen_candle_utc": "2026-07-26T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-07-27T02:29:58+05:30",
+      "last_seen_index": 78,
+      "last_evaluated_candle_utc": "2026-07-30T20:59:58+00:00",
+      "last_state": "waiting_for_confirmation",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 3959.56000 -> swing high 4166.00000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4038.42008, 4062.78000]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-07-27T20:59:58+00:00",
+          "candle_ist": "2026-07-28T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1785283200:1784678400",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 3995.92,
+        "candle_time": 1785283200,
+        "candle_utc": "2026-07-28T20:59:58+00:00",
+        "candle_ist": "2026-07-29T02:29:58+05:30",
+        "confirmation_utc": "2026-08-02T20:59:58+00:00",
+        "confirmation_ist": "2026-08-03T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4166.0,
+        "candle_time": 1784678400,
+        "candle_utc": "2026-07-21T20:59:58+00:00",
+        "candle_ist": "2026-07-22T02:29:58+05:30",
+        "confirmation_utc": "2026-07-26T20:59:58+00:00",
+        "confirmation_ist": "2026-07-27T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4080.96,
+        "upper": 4101.02944,
+        "primary_level": 4101.02944
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4060.89056,
+          "0.500": 4080.96,
+          "0.618": 4101.02944,
+          "0.786": 4129.60288,
+          "1.000": 4166.0
+        },
+        "extension": {
+          "1.272": 3949.65824,
+          "1.618": 3890.81056
+        }
+      },
+      "first_seen_index": 78,
+      "first_seen_candle_utc": "2026-08-02T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-08-03T02:29:58+05:30",
+      "last_seen_index": 79,
+      "last_evaluated_candle_utc": null,
+      "last_state": "waiting_for_zone",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 3995.92000 -> swing high 4166.00000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1785283200:1785369600",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 3995.92,
+        "candle_time": 1785283200,
+        "candle_utc": "2026-07-28T20:59:58+00:00",
+        "candle_ist": "2026-07-29T02:29:58+05:30",
+        "confirmation_utc": "2026-08-02T20:59:58+00:00",
+        "confirmation_ist": "2026-08-03T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4120.29,
+        "candle_time": 1785369600,
+        "candle_utc": "2026-07-29T20:59:58+00:00",
+        "candle_ist": "2026-07-30T02:29:58+05:30",
+        "confirmation_utc": "2026-08-03T20:59:58+00:00",
+        "confirmation_ist": "2026-08-04T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4043.42934,
+        "upper": 4058.105,
+        "primary_level": 4043.42934
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4072.78066,
+          "0.500": 4058.105,
+          "0.618": 4043.42934,
+          "0.786": 4022.53518,
+          "1.000": 3995.92
+        },
+        "extension": {
+          "1.272": 4154.11864,
+          "1.618": 4197.15066
+        }
+      },
+      "first_seen_index": 79,
+      "first_seen_candle_utc": "2026-08-03T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-08-04T02:29:58+05:30",
+      "last_seen_index": 89,
+      "last_evaluated_candle_utc": "2026-08-16T20:59:58+00:00",
+      "last_state": "no_setup",
+      "outcome": "retired_no_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 3995.92000 -> swing high 4120.29000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4043.42934, 4058.10500]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-08-04T20:59:58+00:00",
+          "candle_ist": "2026-08-05T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "waiting_for_zone",
+          "reason": "Price left the entry zone without a qualifying rejection candle; waiting for a fresh entry.",
+          "candle_utc": "2026-08-05T20:59:58+00:00",
+          "candle_ist": "2026-08-06T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "no_setup",
+          "reason": "No confirmed swing pair remains; setup retired.",
+          "candle_utc": null,
+          "candle_ist": null
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1786924800:1786579200",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 4276.43,
+        "candle_time": 1786924800,
+        "candle_utc": "2026-08-16T20:59:58+00:00",
+        "candle_ist": "2026-08-17T02:29:58+05:30",
+        "confirmation_utc": "2026-08-19T20:59:58+00:00",
+        "confirmation_ist": "2026-08-20T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4449.63,
+        "candle_time": 1786579200,
+        "candle_utc": "2026-08-12T20:59:58+00:00",
+        "candle_ist": "2026-08-13T02:29:58+05:30",
+        "confirmation_utc": "2026-08-17T20:59:58+00:00",
+        "confirmation_ist": "2026-08-18T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4363.030000000001,
+        "upper": 4383.4676,
+        "primary_level": 4383.4676
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4342.5924,
+          "0.500": 4363.030000000001,
+          "0.618": 4383.4676,
+          "0.786": 4412.5652,
+          "1.000": 4449.63
+        },
+        "extension": {
+          "1.272": 4229.319600000001,
+          "1.618": 4169.392400000001
+        }
+      },
+      "first_seen_index": 91,
+      "first_seen_candle_utc": "2026-08-19T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-08-20T02:29:58+05:30",
+      "last_seen_index": 97,
+      "last_evaluated_candle_utc": "2026-08-20T20:59:58+00:00",
+      "last_state": "invalidated",
+      "outcome": "invalidated",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 4276.43000 -> swing high 4449.63000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "invalidated",
+          "reason": "Price breached above the swing high invalidation boundary 4449.63000 on a completed candle.",
+          "candle_utc": "2026-08-20T20:59:58+00:00",
+          "candle_ist": "2026-08-21T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1786924800:1787616000",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 4276.43,
+        "candle_time": 1786924800,
+        "candle_utc": "2026-08-16T20:59:58+00:00",
+        "candle_ist": "2026-08-17T02:29:58+05:30",
+        "confirmation_utc": "2026-08-19T20:59:58+00:00",
+        "confirmation_ist": "2026-08-20T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4696.73,
+        "candle_time": 1787616000,
+        "candle_utc": "2026-08-24T20:59:58+00:00",
+        "candle_ist": "2026-08-25T02:29:58+05:30",
+        "confirmation_utc": "2026-08-27T20:59:58+00:00",
+        "confirmation_ist": "2026-08-28T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4436.9846,
+        "upper": 4486.58,
+        "primary_level": 4436.9846
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4536.1754,
+          "0.500": 4486.58,
+          "0.618": 4436.9846,
+          "0.786": 4366.3742,
+          "1.000": 4276.43
+        },
+        "extension": {
+          "1.272": 4811.0516,
+          "1.618": 4956.475399999999
+        }
+      },
+      "first_seen_index": 97,
+      "first_seen_candle_utc": "2026-08-27T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-08-28T02:29:58+05:30",
+      "last_seen_index": 103,
+      "last_evaluated_candle_utc": "2026-09-03T20:59:58+00:00",
+      "last_state": "waiting_for_confirmation",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 4276.43000 -> swing high 4696.73000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4436.98460, 4486.58000]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-08-30T20:59:58+00:00",
+          "candle_ist": "2026-08-31T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "waiting_for_zone",
+          "reason": "Price left the entry zone without a qualifying rejection candle; waiting for a fresh entry.",
+          "candle_utc": "2026-09-01T20:59:58+00:00",
+          "candle_ist": "2026-09-02T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4436.98460, 4486.58000]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-09-02T20:59:58+00:00",
+          "candle_ist": "2026-09-03T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1788307200:1787616000",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 4282.4,
+        "candle_time": 1788307200,
+        "candle_utc": "2026-09-01T20:59:58+00:00",
+        "candle_ist": "2026-09-02T02:29:58+05:30",
+        "confirmation_utc": "2026-09-06T20:59:58+00:00",
+        "confirmation_ist": "2026-09-07T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4696.73,
+        "candle_time": 1787616000,
+        "candle_utc": "2026-08-24T20:59:58+00:00",
+        "candle_ist": "2026-08-25T02:29:58+05:30",
+        "confirmation_utc": "2026-08-27T20:59:58+00:00",
+        "confirmation_ist": "2026-08-28T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4489.565,
+        "upper": 4538.45594,
+        "primary_level": 4538.45594
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4440.674059999999,
+          "0.500": 4489.565,
+          "0.618": 4538.45594,
+          "0.786": 4608.06338,
+          "1.000": 4696.73
+        },
+        "extension": {
+          "1.272": 4169.70224,
+          "1.618": 4026.3440599999994
+        }
+      },
+      "first_seen_index": 103,
+      "first_seen_candle_utc": "2026-09-06T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-09-07T02:29:58+05:30",
+      "last_seen_index": 104,
+      "last_evaluated_candle_utc": null,
+      "last_state": "waiting_for_zone",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 4282.40000 -> swing high 4696.73000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1788307200:1788393600",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 4282.4,
+        "candle_time": 1788307200,
+        "candle_utc": "2026-09-01T20:59:58+00:00",
+        "candle_ist": "2026-09-02T02:29:58+05:30",
+        "confirmation_utc": "2026-09-06T20:59:58+00:00",
+        "confirmation_ist": "2026-09-07T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4510.76,
+        "candle_time": 1788393600,
+        "candle_utc": "2026-09-02T20:59:58+00:00",
+        "candle_ist": "2026-09-03T02:29:58+05:30",
+        "confirmation_utc": "2026-09-07T20:59:58+00:00",
+        "confirmation_ist": "2026-09-08T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4369.633519999999,
+        "upper": 4396.58,
+        "primary_level": 4369.633519999999
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4423.52648,
+          "0.500": 4396.58,
+          "0.618": 4369.633519999999,
+          "0.786": 4331.26904,
+          "1.000": 4282.4
+        },
+        "extension": {
+          "1.272": 4572.87392,
+          "1.618": 4651.886480000001
+        }
+      },
+      "first_seen_index": 104,
+      "first_seen_candle_utc": "2026-09-07T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-09-08T02:29:58+05:30",
+      "last_seen_index": 113,
+      "last_evaluated_candle_utc": "2026-09-15T20:59:58+00:00",
+      "last_state": "invalidated",
+      "outcome": "invalidated",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 4282.40000 -> swing high 4510.76000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4369.63352, 4396.58000]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-09-08T20:59:58+00:00",
+          "candle_ist": "2026-09-09T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "waiting_for_zone",
+          "reason": "Price left the entry zone without a qualifying rejection candle; waiting for a fresh entry.",
+          "candle_utc": "2026-09-13T20:59:58+00:00",
+          "candle_ist": "2026-09-14T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "invalidated",
+          "reason": "Price breached below the swing low invalidation boundary 4282.40000 on a completed candle.",
+          "candle_utc": "2026-09-15T20:59:58+00:00",
+          "candle_ist": "2026-09-16T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1789516800:1788393600",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 4234.94,
+        "candle_time": 1789516800,
+        "candle_utc": "2026-09-15T20:59:58+00:00",
+        "candle_ist": "2026-09-16T02:29:58+05:30",
+        "confirmation_utc": "2026-09-20T20:59:58+00:00",
+        "confirmation_ist": "2026-09-21T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4510.76,
+        "candle_time": 1788393600,
+        "candle_utc": "2026-09-02T20:59:58+00:00",
+        "candle_ist": "2026-09-03T02:29:58+05:30",
+        "confirmation_utc": "2026-09-07T20:59:58+00:00",
+        "confirmation_ist": "2026-09-08T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4372.85,
+        "upper": 4405.39676,
+        "primary_level": 4405.39676
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4340.30324,
+          "0.500": 4372.85,
+          "0.618": 4405.39676,
+          "0.786": 4451.73452,
+          "1.000": 4510.76
+        },
+        "extension": {
+          "1.272": 4159.91696,
+          "1.618": 4064.483239999999
+        }
+      },
+      "first_seen_index": 113,
+      "first_seen_candle_utc": "2026-09-20T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-09-21T02:29:58+05:30",
+      "last_seen_index": 115,
+      "last_evaluated_candle_utc": "2026-09-21T20:59:58+00:00",
+      "last_state": "waiting_for_confirmation",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 4234.94000 -> swing high 4510.76000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4372.85000, 4405.39676]; waiting for a bearish rejection candle.",
+          "candle_utc": "2026-09-21T20:59:58+00:00",
+          "candle_ist": "2026-09-22T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1789516800:1789689600",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 4234.94,
+        "candle_time": 1789516800,
+        "candle_utc": "2026-09-15T20:59:58+00:00",
+        "candle_ist": "2026-09-16T02:29:58+05:30",
+        "confirmation_utc": "2026-09-20T20:59:58+00:00",
+        "confirmation_ist": "2026-09-21T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4399.53,
+        "candle_time": 1789689600,
+        "candle_utc": "2026-09-17T20:59:58+00:00",
+        "candle_ist": "2026-09-18T02:29:58+05:30",
+        "confirmation_utc": "2026-09-22T20:59:58+00:00",
+        "confirmation_ist": "2026-09-23T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4297.81338,
+        "upper": 4317.235,
+        "primary_level": 4297.81338
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4336.65662,
+          "0.500": 4317.235,
+          "0.618": 4297.81338,
+          "0.786": 4270.16226,
+          "1.000": 4234.94
+        },
+        "extension": {
+          "1.272": 4444.2984799999995,
+          "1.618": 4501.24662
+        }
+      },
+      "first_seen_index": 115,
+      "first_seen_candle_utc": "2026-09-22T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-09-23T02:29:58+05:30",
+      "last_seen_index": 122,
+      "last_evaluated_candle_utc": "2026-09-27T20:59:58+00:00",
+      "last_state": "invalidated",
+      "outcome": "invalidated",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 4234.94000 -> swing high 4399.53000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4297.81338, 4317.23500]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-09-23T20:59:58+00:00",
+          "candle_ist": "2026-09-24T02:29:58+05:30"
+        },
+        {
+          "from_state": "waiting_for_confirmation",
+          "to_state": "invalidated",
+          "reason": "Price breached below the swing low invalidation boundary 4234.94000 on a completed candle.",
+          "candle_utc": "2026-09-27T20:59:58+00:00",
+          "candle_ist": "2026-09-28T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1790640000:1789689600",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 4108.33,
+        "candle_time": 1790640000,
+        "candle_utc": "2026-09-28T20:59:58+00:00",
+        "candle_ist": "2026-09-29T02:29:58+05:30",
+        "confirmation_utc": "2026-10-01T20:59:58+00:00",
+        "confirmation_ist": "2026-10-02T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4399.53,
+        "candle_time": 1789689600,
+        "candle_utc": "2026-09-17T20:59:58+00:00",
+        "candle_ist": "2026-09-18T02:29:58+05:30",
+        "confirmation_utc": "2026-09-22T20:59:58+00:00",
+        "confirmation_ist": "2026-09-23T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4253.93,
+        "upper": 4288.2916,
+        "primary_level": 4288.2916
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4219.5684,
+          "0.500": 4253.93,
+          "0.618": 4288.2916,
+          "0.786": 4337.2132,
+          "1.000": 4399.53
+        },
+        "extension": {
+          "1.272": 4029.1236,
+          "1.618": 3928.3684
+        }
+      },
+      "first_seen_index": 122,
+      "first_seen_candle_utc": "2026-10-01T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-10-02T02:29:58+05:30",
+      "last_seen_index": 125,
+      "last_evaluated_candle_utc": "2026-10-05T20:59:58+00:00",
+      "last_state": "waiting_for_zone",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 4108.33000 -> swing high 4399.53000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1790640000:1790899200",
+      "direction": "bullish",
+      "swing_low": {
+        "price": 4108.33,
+        "candle_time": 1790640000,
+        "candle_utc": "2026-09-28T20:59:58+00:00",
+        "candle_ist": "2026-09-29T02:29:58+05:30",
+        "confirmation_utc": "2026-10-01T20:59:58+00:00",
+        "confirmation_ist": "2026-10-02T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4226.45,
+        "candle_time": 1790899200,
+        "candle_utc": "2026-10-01T20:59:58+00:00",
+        "candle_ist": "2026-10-02T02:29:58+05:30",
+        "confirmation_utc": "2026-10-06T20:59:58+00:00",
+        "confirmation_ist": "2026-10-07T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4153.45184,
+        "upper": 4167.389999999999,
+        "primary_level": 4153.45184
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4181.32816,
+          "0.500": 4167.389999999999,
+          "0.618": 4153.45184,
+          "0.786": 4133.60768,
+          "1.000": 4108.33
+        },
+        "extension": {
+          "1.272": 4258.57864,
+          "1.618": 4299.44816
+        }
+      },
+      "first_seen_index": 125,
+      "first_seen_candle_utc": "2026-10-06T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-10-07T02:29:58+05:30",
+      "last_seen_index": 128,
+      "last_evaluated_candle_utc": "2026-10-08T20:59:58+00:00",
+      "last_state": "waiting_for_confirmation",
+      "outcome": "superseded_by_new_swing_pair",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bullish impulse: swing low 4108.33000 -> swing high 4226.45000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4153.45184, 4167.39000]; waiting for a bullish rejection candle.",
+          "candle_utc": "2026-10-08T20:59:58+00:00",
+          "candle_ist": "2026-10-09T02:29:58+05:30"
+        }
+      ]
+    },
+    {
+      "setup_id": "D1:1791331200:1790899200",
+      "direction": "bearish",
+      "swing_low": {
+        "price": 4066.3,
+        "candle_time": 1791331200,
+        "candle_utc": "2026-10-06T20:59:58+00:00",
+        "candle_ist": "2026-10-07T02:29:58+05:30",
+        "confirmation_utc": "2026-10-11T20:59:58+00:00",
+        "confirmation_ist": "2026-10-12T02:29:58+05:30"
+      },
+      "swing_high": {
+        "price": 4226.45,
+        "candle_time": 1790899200,
+        "candle_utc": "2026-10-01T20:59:58+00:00",
+        "candle_ist": "2026-10-02T02:29:58+05:30",
+        "confirmation_utc": "2026-10-06T20:59:58+00:00",
+        "confirmation_ist": "2026-10-07T02:29:58+05:30"
+      },
+      "entry_zone": {
+        "lower": 4146.375,
+        "upper": 4165.2726999999995,
+        "primary_level": 4165.2726999999995
+      },
+      "fibonacci_levels": {
+        "retracement": {
+          "0.382": 4127.4773000000005,
+          "0.500": 4146.375,
+          "0.618": 4165.2726999999995,
+          "0.786": 4192.1779,
+          "1.000": 4226.45
+        },
+        "extension": {
+          "1.272": 4022.7392000000004,
+          "1.618": 3967.3273000000004
+        }
+      },
+      "first_seen_index": 128,
+      "first_seen_candle_utc": "2026-10-11T20:59:58+00:00",
+      "first_seen_candle_ist": "2026-10-12T02:29:58+05:30",
+      "last_seen_index": 129,
+      "last_evaluated_candle_utc": "2026-10-12T20:59:58+00:00",
+      "last_state": "waiting_for_confirmation",
+      "outcome": "open_at_end",
+      "confirmed": false,
+      "confirmation": null,
+      "transitions": [
+        {
+          "from_state": "no_setup",
+          "to_state": "monitoring",
+          "reason": "Confirmed bearish impulse: swing low 4066.30000 -> swing high 4226.45000.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "monitoring",
+          "to_state": "waiting_for_zone",
+          "reason": "Fibonacci levels computed; waiting for price to retrace into the entry zone.",
+          "candle_utc": null,
+          "candle_ist": null
+        },
+        {
+          "from_state": "waiting_for_zone",
+          "to_state": "waiting_for_confirmation",
+          "reason": "Price entered the entry zone [4146.37500, 4165.27270]; waiting for a bearish rejection candle.",
+          "candle_utc": "2026-10-12T20:59:58+00:00",
+          "candle_ist": "2026-10-13T02:29:58+05:30"
+        }
+      ]
+    }
+  ],
+  "rejected_inputs": {
+    "fibonacci_setup_rejections": 0,
+    "examples": [],
+    "note": "Evaluation steps where the existing Fibonacci validator rejected the active swing pair (for example a swing high at or below its swing low); no setup was created for these."
+  },
+  "evaluation_notes": {
+    "Insufficient candles (1) for swing detection; need at least 7.": 1,
+    "Insufficient candles (2) for swing detection; need at least 7.": 1,
+    "Insufficient candles (3) for swing detection; need at least 7.": 1,
+    "Insufficient candles (4) for swing detection; need at least 7.": 1,
+    "Insufficient candles (5) for swing detection; need at least 7.": 1,
+    "Insufficient candles (6) for swing detection; need at least 7.": 1
+  },
+  "trade_evaluation": {
+    "engine": "app.backtest.evaluator.BacktestEngine",
+    "status": "no_valid_trade_simulation",
+    "profitability_established": false,
+    "trade_count": 0,
+    "trades": [],
+    "entry_signal_count": 0,
+    "entry_signals": [],
+    "distinct_rejection_reasons": [],
+    "metrics": {
+      "trade_count": 0,
+      "winning_trades": 0,
+      "losing_trades": 0,
+      "win_rate": null,
+      "profit_factor": null,
+      "total_net_pnl": 0,
+      "average_win": null,
+      "average_loss": null,
+      "expectancy": null,
+      "average_holding_bars": null,
+      "avg_rr_ratio": null,
+      "max_consecutive_wins": 0,
+      "max_consecutive_losses": 0,
+      "longest_drawdown_bars": 0,
+      "total_risk_budget_used": 0
+    },
+    "assumptions": [
+      "All P&L is mark-to-market simulation via default_calc_profit; no real broker order_calc_profit is used.",
+      "Entry is assumed at the confirming candle's close (slippage = 0).",
+      "Stop loss is the setup invalidation boundary (100.0-5000.0 points enforced by the risk engine).",
+      "Take profit is applied only when the risk policy tp_policy='fixed_rr'; otherwise exit is SL / invalidation / expiry / end-of-data.",
+      "Positions are evaluated against each historical candle's full high-low range; no tick simulation.",
+      "Daily risk reset occurs at broker/server midnight.",
+      "The risk budget, drawdown and consecutive-loss gates are exercised; rejected entries are logged but not filled.",
+      "No commissions, swaps, or financing are deducted from simulated P&L.",
+      "No external (manual) positions affect exposure during the simulated window.",
+      "Execution is simulation-only: trading_enabled=False and app_read_only=True enforced."
+    ],
+    "validation_errors": [],
+    "risk_policy": {
+      "risk_per_trade_percent": 0.5,
+      "max_risk_per_trade_percent": 1.0,
+      "max_aggregate_risk_percent": 5.0,
+      "max_open_positions": 3,
+      "max_daily_loss_percent": 5.0,
+      "max_daily_drawdown_percent": 10.0,
+      "max_consecutive_losses": null,
+      "cost_allowance_percent": 0.0,
+      "min_stop_distance_points": 100.0,
+      "max_stop_distance_points": 5000.0,
+      "max_quote_age_seconds": 10.0,
+      "max_signal_age_minutes": 60.0,
+      "max_spread_points": 150.0,
+      "max_price_drift_points": 300.0,
+      "tp_policy": "none",
+      "fixed_rr": 2.0,
+      "allowed_symbols": [
+        "XAUUSD"
+      ],
+      "allowed_timeframes": [
+        "M1",
+        "M5",
+        "M15",
+        "M30",
+        "H1",
+        "H4",
+        "D1"
+      ],
+      "block_on_external_positions": false,
+      "daily_reset": "broker_midnight",
+      "filling_policy": "auto",
+      "config_fingerprint": "ef08c4115688"
+    },
+    "config_snapshot": {
+      "swing": {
+        "left_candles": 3,
+        "right_candles": 3,
+        "min_swing_size_points": null
+      },
+      "zone": {
+        "primary_level": 0.618,
+        "zone_lower_ratio": 0.5,
+        "zone_upper_ratio": 0.618
+      },
+      "confirmation": {
+        "min_wick_to_body_ratio": 0.5,
+        "min_wick_to_range_ratio": 0.3,
+        "require_close_in_zone": true,
+        "require_close_direction": true
+      },
+      "expiration": {
+        "max_candles": 100
+      },
+      "invalidation": {
+        "use_structural_invalidation": true
+      },
+      "risk": {
+        "risk_per_trade_percent": 0.5,
+        "max_risk_per_trade_percent": 1.0,
+        "max_aggregate_risk_percent": 5.0,
+        "max_open_positions": 3,
+        "max_daily_loss_percent": 5.0,
+        "max_daily_drawdown_percent": 10.0,
+        "max_consecutive_losses": null,
+        "cost_allowance_percent": 0.0,
+        "min_stop_distance_points": 100.0,
+        "max_stop_distance_points": 5000.0,
+        "max_quote_age_seconds": 10.0,
+        "max_signal_age_minutes": 60.0,
+        "max_spread_points": 150.0,
+        "max_price_drift_points": 300.0,
+        "tp_policy": "none",
+        "fixed_rr": 2.0,
+        "allowed_symbols": [
+          "XAUUSD"
+        ],
+        "allowed_timeframes": [
+          "M1",
+          "M5",
+          "M15",
+          "M30",
+          "H1",
+          "H4",
+          "D1"
+        ],
+        "block_on_external_positions": false,
+        "daily_reset": "broker_midnight",
+        "filling_policy": "auto",
+        "config_fingerprint": "ef08c4115688"
+      },
+      "start_equity": 100000.0,
+      "account_currency": "USD",
+      "calculation_mode": "simulation",
+      "trading_enabled": false
+    },
+    "notes": [
+      "The existing BacktestEngine produced no filled trades. Every entry signal generated at a confirmed setup was rejected by the RiskEngine, so no entry, exit or fill was simulated and trade-level profitability could not be established from the existing evaluator."
+    ]
+  },
+  "limitations": [
+    "Trade-level profitability could not be established: the existing trade evaluator filled no trades (see trade_evaluation.notes)."
+  ]
+}

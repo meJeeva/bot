@@ -1,0 +1,260 @@
+{
+  "report_type": "research_forward_validation",
+  "source": "research_forward",
+  "generated_at_utc": "2026-10-14T08:38:49.527812+00:00",
+  "generated_at_ist": "2026-10-14T14:08:49.527812+05:30",
+  "timezone_note": "Stored in UTC; displayed in IST (UTC+05:30).",
+  "read_only": true,
+  "trading_enabled": false,
+  "hypothetical_only": true,
+  "symbol": "XAUUSD",
+  "point": 0.01,
+  "strategies": [
+    {
+      "key": "trend_pullback",
+      "label": "Trend-following pullback (H1 context, M15 pullback, M5 trigger)",
+      "fingerprint": "e29e04cf4c72",
+      "rules": {
+        "decision_timeframe": "M5",
+        "context": "H1 EMA fast vs slow (completed H1 bar)",
+        "h1_fast": 50,
+        "h1_slow": 200,
+        "pullback": "M15 close on the pullback side of EMA fast, still on the trend side of EMA slow",
+        "m15_fast": 20,
+        "m15_slow": 50,
+        "trigger": "completed M5 reversal candle closing beyond EMA fast in the trend direction",
+        "m5_fast": 20,
+        "stop": "min/max of last 5 completed M5 bars +/- buffer",
+        "stop_lookback": 5,
+        "stop_buffer_points": 20.0,
+        "target": "fixed reward:risk from entry",
+        "reward_risk": 2.0,
+        "extra_exit": "opposite H1 EMA cross at candle close"
+      },
+      "decision_timeframe": "M5",
+      "required_timeframes": [
+        "M5",
+        "M15",
+        "H1"
+      ]
+    },
+    {
+      "key": "breakout_retest",
+      "label": "Breakout-retest scalping (M5 range breakout + retest)",
+      "fingerprint": "917c75fd8806",
+      "rules": {
+        "decision_timeframe": "M5",
+        "range_lookback": 20,
+        "min_range_points": 50.0,
+        "max_range_points": 600.0,
+        "breakout": "completed M5 close beyond the range boundary",
+        "no_chase_body_points": 250.0,
+        "no_chase_extension_points": 150.0,
+        "retest_window_candles": 8,
+        "stop": "retest extreme / range boundary +/- buffer",
+        "stop_buffer_points": 20.0,
+        "target": "measured move (range width), min fallback R:R",
+        "fallback_rr": 1.0,
+        "time_stop_candles": 40
+      },
+      "decision_timeframe": "M5",
+      "required_timeframes": [
+        "M5"
+      ]
+    }
+  ],
+  "runtime": {
+    "scanned_candles_total": 10,
+    "created_total": 0,
+    "skipped_duplicates": 0,
+    "skipped_over_cap": 0,
+    "rejections": {
+      "candle_read_failed": 3,
+      "missing_timeframe_data": 2
+    },
+    "last_run_utc": "2026-10-14T08:38:19.495169+00:00",
+    "last_run_ist": "2026-10-14T14:08:19.495169+05:30",
+    "last_error": null
+  },
+  "min_resolved_for_metrics": 20,
+  "cost_sensitivity_points": [
+    0.0,
+    20.0,
+    38.0,
+    46.0,
+    55.0,
+    80.0
+  ],
+  "persistence_available": true,
+  "total_observations": 0,
+  "by_strategy": {
+    "trend_pullback": {
+      "key": "trend_pullback",
+      "label": "Trend-following pullback (H1 context, M15 pullback, M5 trigger)",
+      "fingerprint": "e29e04cf4c72",
+      "decision_timeframe": "M5",
+      "simulated_entries": 0,
+      "resolved": 0,
+      "still_open": 0,
+      "ambiguous": 0,
+      "target_hits": 0,
+      "stop_hits": 0,
+      "unresolved_no_data": 0,
+      "gross_points_total": 0.0,
+      "net_points_total": 0,
+      "expectancy_points": null,
+      "profit_factor": null,
+      "metrics_sufficient": false,
+      "metrics_note": "Fewer than 20 resolved observations; expectancy and profit factor are withheld.",
+      "max_drawdown_points": 0.0,
+      "open_observations": 0,
+      "open_risk_points_total": 0.0,
+      "by_timeframe": {},
+      "cost_sensitivity": [
+        {
+          "cost_points": 0.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": false
+        },
+        {
+          "cost_points": 20.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 38.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 46.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 55.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 80.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        }
+      ]
+    },
+    "breakout_retest": {
+      "key": "breakout_retest",
+      "label": "Breakout-retest scalping (M5 range breakout + retest)",
+      "fingerprint": "917c75fd8806",
+      "decision_timeframe": "M5",
+      "simulated_entries": 0,
+      "resolved": 0,
+      "still_open": 0,
+      "ambiguous": 0,
+      "target_hits": 0,
+      "stop_hits": 0,
+      "unresolved_no_data": 0,
+      "gross_points_total": 0.0,
+      "net_points_total": 0,
+      "expectancy_points": null,
+      "profit_factor": null,
+      "metrics_sufficient": false,
+      "metrics_note": "Fewer than 20 resolved observations; expectancy and profit factor are withheld.",
+      "max_drawdown_points": 0.0,
+      "open_observations": 0,
+      "open_risk_points_total": 0.0,
+      "by_timeframe": {},
+      "cost_sensitivity": [
+        {
+          "cost_points": 0.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": false
+        },
+        {
+          "cost_points": 20.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 38.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 46.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 55.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        },
+        {
+          "cost_points": 80.0,
+          "resolved": 0,
+          "net_points_total": 0.0,
+          "expectancy_points": null,
+          "profit_factor": null,
+          "is_assumption": true
+        }
+      ]
+    }
+  },
+  "spread": {
+    "available": false,
+    "observations_with_snapshot": 0,
+    "observations_missing_snapshot": 0,
+    "snapshot_spread_points_min": null,
+    "snapshot_spread_points_max": null,
+    "snapshot_spread_points_mean": null,
+    "note": "These are live spread SNAPSHOTS sampled at signal time. They are NOT historical averages and must not be described as such."
+  },
+  "data_gaps": {
+    "observations_with_data_note": 0,
+    "observations_missing_snapshot": 0,
+    "note": "A missing quote, a missing take-profit level or a candle window that no longer covers the last evaluated candle is reported here rather than guessed. Signals confirmed while the backend was stopped are not backfilled."
+  },
+  "limitations": [
+    "Hypothetical only: no order was placed, no fill occurred and no real P&L exists. Entry is assumed at the signal candle close.",
+    "Outcomes use completed candles only; a candle spanning both the stop and the target is ambiguous and is recorded as such, not guessed.",
+    "The frozen rules are unchanged and were not tuned during the observation period.",
+    "The strategies emit a signal only when every rule condition holds; per-condition rejection reasons are not exposed by the frozen rules. Only operational rejections (duplicates, missing data, cap) are counted here.",
+    "Costs are a documented assumption; the sampled spread is a snapshot, not a historical measurement.",
+    "No conclusion about profitability may be drawn from a small forward sample; this is not out-of-sample validation."
+  ]
+}

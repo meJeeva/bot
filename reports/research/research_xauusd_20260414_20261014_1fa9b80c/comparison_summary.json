@@ -1,0 +1,310 @@
+{
+  "report_type": "strategy_research_comparison",
+  "run_id": "research_xauusd_20260414_20261014_1fa9b80c",
+  "generated_at_utc": "2026-10-14T07:05:31.102205+00:00",
+  "generated_at_ist": "2026-10-14T12:35:31.102205+05:30",
+  "symbol": "XAUUSD",
+  "server_time_offset_seconds": 10802,
+  "requested_start_utc": "2026-04-14T00:00:00+00:00",
+  "requested_end_utc": "2026-10-14T07:05:31.102205+00:00",
+  "requested_start_ist": "2026-04-14T05:30:00+05:30",
+  "requested_end_ist": "2026-10-14T12:35:31.102205+05:30",
+  "requested_timeframes": [
+    "M5",
+    "M15",
+    "H1"
+  ],
+  "start_equity": 100000.0,
+  "chronological_split": {
+    "method": "Trades are assigned to development / validation / out-of-sample by entry time. Rule constants were frozen in code before evaluation; the out-of-sample window was not used to tune any parameter.",
+    "fractions": {
+      "development": 0.5,
+      "validation": 0.19999999999999996,
+      "out_of_sample": 0.30000000000000004
+    },
+    "boundaries_utc": {
+      "development": {
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-07-14T15:32:45.551102+00:00"
+      },
+      "validation": {
+        "start": "2026-07-14T15:32:45.551102+00:00",
+        "end": "2026-08-20T07:21:51.771543+00:00"
+      },
+      "out_of_sample": {
+        "start": "2026-08-20T07:21:51.771543+00:00",
+        "end": "2026-10-14T07:05:31.102205+00:00"
+      },
+      "full": {
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-10-14T07:05:31.102205+00:00"
+      }
+    }
+  },
+  "cost_model": {
+    "model": "net = gross - cost_price * volume, applied once per closed trade",
+    "unit": "USD of P&L per unit of simulated volume; XAUUSD point = 0.01",
+    "measured_spread": {
+      "basis": "measured_mean_per_bar_spread",
+      "measured": true,
+      "timeframe": "M5",
+      "observations": 34563,
+      "mean_points": 7.7953,
+      "min_points": 0,
+      "max_points": 281,
+      "note": "Mean of MT5's per-bar spread field. It is a genuine measured value but a per-bar approximation, not a tick-level spread series."
+    },
+    "central_cost_price": 0.07795272401122587,
+    "central_cost_basis": "Shared central cost for every leg so the three are comparable. Measured from MT5's per-bar spread field where present, otherwise a labelled default.",
+    "sensitivity_cost_price": [
+      0.0,
+      0.07795272401122587,
+      0.1,
+      0.3,
+      0.5,
+      1.0
+    ],
+    "commission_modeled": false,
+    "swap_financing_modeled": false,
+    "omitted_costs_note": "Commission and swap are unknown and omitted from the primary figure; the sensitivity grid bounds their effect only approximately. No profitability claim is made from this sample."
+  },
+  "strategies": {
+    "trend_pullback": {
+      "label": "Trend-following pullback (H1 context, M15 pullback, M5 trigger)",
+      "available": true,
+      "strategy_fingerprint": "e29e04cf4c72",
+      "unavailable_reason": null
+    },
+    "breakout_retest": {
+      "label": "Breakout-retest scalping (M5 range breakout + retest)",
+      "available": true,
+      "strategy_fingerprint": "917c75fd8806",
+      "unavailable_reason": null
+    },
+    "fibonacci": {
+      "label": "Fibonacci strategy (unchanged baseline)",
+      "available": true,
+      "strategy_fingerprint": "4eea76386812",
+      "unavailable_reason": null
+    }
+  },
+  "comparison": [
+    {
+      "strategy": "fibonacci",
+      "window": "development",
+      "trade_count": 83,
+      "closed_trades": 82,
+      "target_hits": 0,
+      "stop_hits": 82,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "expectancy": -444.78885033727835,
+      "net_pnl_closed": -36472.685727656826,
+      "max_drawdown_percent": 36.47268572765681,
+      "gross_pnl_closed": -36080.32940000008
+    },
+    {
+      "strategy": "fibonacci",
+      "window": "validation",
+      "trade_count": 10,
+      "closed_trades": 10,
+      "target_hits": 0,
+      "stop_hits": 10,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "expectancy": -447.46574986459837,
+      "net_pnl_closed": -4474.657498645984,
+      "max_drawdown_percent": 4.474657498646003,
+      "gross_pnl_closed": -4440.556300000033
+    },
+    {
+      "strategy": "fibonacci",
+      "window": "out_of_sample",
+      "trade_count": 22,
+      "closed_trades": 19,
+      "target_hits": 0,
+      "stop_hits": 19,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "expectancy": -393.8464012092333,
+      "net_pnl_closed": -7483.081622975433,
+      "max_drawdown_percent": 7.483081622975442,
+      "gross_pnl_closed": -7406.446299999997
+    },
+    {
+      "strategy": "fibonacci",
+      "window": "full",
+      "trade_count": 115,
+      "closed_trades": 111,
+      "target_hits": 0,
+      "stop_hits": 111,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "expectancy": -436.31013377728146,
+      "net_pnl_closed": -48430.42484927824,
+      "max_drawdown_percent": 48.43042484927824,
+      "gross_pnl_closed": -47927.33200000011
+    },
+    {
+      "strategy": "trend_pullback",
+      "window": "development",
+      "trade_count": 206,
+      "closed_trades": 206,
+      "target_hits": 80,
+      "stop_hits": 126,
+      "win_rate": 0.3883495145631068,
+      "profit_factor": 1.2053574812807983,
+      "expectancy": 64.98231833383082,
+      "net_pnl_closed": 13386.357576769147,
+      "max_drawdown_percent": 7.773709252176865,
+      "gross_pnl_closed": 14366.878899999188
+    },
+    {
+      "strategy": "trend_pullback",
+      "window": "validation",
+      "trade_count": 40,
+      "closed_trades": 40,
+      "target_hits": 9,
+      "stop_hits": 31,
+      "win_rate": 0.225,
+      "profit_factor": 0.5191564200539446,
+      "expectancy": -199.51211499818578,
+      "net_pnl_closed": -7980.484599927431,
+      "max_drawdown_percent": 7.98048459992744,
+      "gross_pnl_closed": -7739.747099999764
+    },
+    {
+      "strategy": "trend_pullback",
+      "window": "out_of_sample",
+      "trade_count": 0,
+      "closed_trades": 0,
+      "target_hits": 0,
+      "stop_hits": 0,
+      "win_rate": null,
+      "profit_factor": null,
+      "expectancy": null,
+      "net_pnl_closed": 0,
+      "max_drawdown_percent": null,
+      "gross_pnl_closed": 0
+    },
+    {
+      "strategy": "trend_pullback",
+      "window": "full",
+      "trade_count": 246,
+      "closed_trades": 246,
+      "target_hits": 89,
+      "stop_hits": 157,
+      "win_rate": 0.3617886178861789,
+      "profit_factor": 1.06610062812511,
+      "expectancy": 21.97509340179559,
+      "net_pnl_closed": 5405.872976841715,
+      "max_drawdown_percent": 12.489813972252989,
+      "gross_pnl_closed": 6627.131799999425
+    },
+    {
+      "strategy": "breakout_retest",
+      "window": "development",
+      "trade_count": 3,
+      "closed_trades": 3,
+      "target_hits": 0,
+      "stop_hits": 3,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "expectancy": -292.12860573441714,
+      "net_pnl_closed": -876.3858172032513,
+      "max_drawdown_percent": 0.8763858172032487,
+      "gross_pnl_closed": -852.9999999998836
+    },
+    {
+      "strategy": "breakout_retest",
+      "window": "validation",
+      "trade_count": 4,
+      "closed_trades": 4,
+      "target_hits": 1,
+      "stop_hits": 3,
+      "win_rate": 0.25,
+      "profit_factor": 0.5374472683270429,
+      "expectancy": -88.04527240111213,
+      "net_pnl_closed": -352.1810896044485,
+      "max_drawdown_percent": 0.761385817203336,
+      "gross_pnl_closed": -320.99999999995816
+    },
+    {
+      "strategy": "breakout_retest",
+      "window": "out_of_sample",
+      "trade_count": 2,
+      "closed_trades": 2,
+      "target_hits": 1,
+      "stop_hits": 1,
+      "win_rate": 0.5,
+      "profit_factor": 1.1752791564022818,
+      "expectancy": 43.86193181582985,
+      "net_pnl_closed": 87.7238636316597,
+      "max_drawdown_percent": 0.5004808639672265,
+      "gross_pnl_closed": 98.9093000000305
+    },
+    {
+      "strategy": "breakout_retest",
+      "window": "full",
+      "trade_count": 9,
+      "closed_trades": 9,
+      "target_hits": 2,
+      "stop_hits": 7,
+      "win_rate": 0.2222222222222222,
+      "profit_factor": 0.4664600911053865,
+      "expectancy": -126.76033813067114,
+      "net_pnl_closed": -1140.8430431760403,
+      "max_drawdown_percent": 1.2285669068076968,
+      "gross_pnl_closed": -1075.0906999998112
+    }
+  ],
+  "data_quality": {
+    "M5": {
+      "candle_count": 34563,
+      "first_candle_utc": "2026-04-14T00:04:58+00:00",
+      "last_candle_utc": "2026-10-14T06:59:58+00:00",
+      "warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 131 gap(s) in the historical candle timestamps (largest about 635 M5 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    },
+    "M15": {
+      "candle_count": 11522,
+      "first_candle_utc": "2026-04-14T00:14:58+00:00",
+      "last_candle_utc": "2026-10-14T06:44:58+00:00",
+      "warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 131 gap(s) in the historical candle timestamps (largest about 211 M15 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    },
+    "H1": {
+      "candle_count": 2882,
+      "first_candle_utc": "2026-04-14T00:59:58+00:00",
+      "last_candle_utc": "2026-10-14T05:59:58+00:00",
+      "warnings": [
+        "1 still-forming bar(s) were excluded; replay uses only completed candles.",
+        "Detected 131 gap(s) in the historical candle timestamps (largest about 52 H1 bar(s), e.g. weekend or holiday sessions); replay continues across the gap without inventing candles."
+      ]
+    }
+  },
+  "data_notes": [],
+  "limitations": [
+    "One symbol (XAUUSD) and one regime over the requested window; results do not generalise and no strategy is declared superior from in-sample profit or a small sample.",
+    "Research trades are hypothetical simulations, not broker fills; they are distinct from live Fibonacci signals, shadow validation and backtests.",
+    "Commission and swap are unknown and not modelled; cost is per-bar spread plus a labelled assumption grid.",
+    "The Fibonacci baseline is per-timeframe and the research strategies are multi-timeframe, so the comparison is directional, not an exact match.",
+    "Higher-timeframe rules use completed bars only, which removes (never adds) signals relative to a forward-looking rule."
+  ],
+  "read_only": true,
+  "trading_enabled": false,
+  "order_submission": "Not called. No MetaTrader order-execution function is imported or invoked anywhere in the research path.",
+  "output_files": {
+    "comparison_summary_json": "..\\reports\\research\\research_xauusd_20260414_20261014_1fa9b80c\\comparison_summary.json",
+    "comparison_summary_csv": "..\\reports\\research\\research_xauusd_20260414_20261014_1fa9b80c\\comparison_summary.csv",
+    "per_strategy_json": {
+      "trend_pullback": "..\\reports\\research\\research_xauusd_20260414_20261014_1fa9b80c\\trend_pullback.json",
+      "breakout_retest": "..\\reports\\research\\research_xauusd_20260414_20261014_1fa9b80c\\breakout_retest.json",
+      "fibonacci": "..\\reports\\research\\research_xauusd_20260414_20261014_1fa9b80c\\fibonacci.json"
+    }
+  }
+}
