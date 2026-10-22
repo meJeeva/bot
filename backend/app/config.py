@@ -95,14 +95,15 @@ class Settings(BaseSettings):
         description="Expose the raw account login instead of masking it (trusted local machines only)",
     )
 
-    # --- Automatic M1 trading settings ---
-    auto_trade_magic_number: int = Field(default=9001, description="Magic number for the automatic M1 strategy")
-    auto_trade_volume: float = Field(default=0.01, gt=0, description="Configured order volume for the automatic M1 strategy")
+    # --- Automatic trading settings (5-second cycle) ---
+    auto_trade_magic_number: int = Field(default=9001, description="Magic number for the automatic trading strategy")
+    auto_trade_volume: float = Field(default=0.01, gt=0, description="Configured order volume for the automatic trading strategy")
     auto_trade_max_spread_points: float = Field(default=100.0, ge=0, description="Maximum permitted spread in points")
     auto_trade_max_entry_deviation_points: int = Field(default=20, ge=0, description="Maximum allowed entry price deviation in points")
     auto_trade_max_daily_loss: float = Field(default=100.0, ge=0, description="Maximum permitted daily loss")
     auto_trade_max_cycles: int = Field(default=1000, ge=1, description="Maximum number of cycles per session")
-    auto_trade_exit_seconds_before_minute_end: int = Field(default=5, ge=1, le=55, description="Seconds before minute end to request exit")
+    auto_trade_entry_interval_seconds: int = Field(default=5, ge=1, le=300, description="Interval between BUY entries in seconds")
+    auto_trade_holding_duration_seconds: int = Field(default=3, ge=1, le=60, description="Holding duration after confirmed fill in seconds")
     auto_trade_stop_policy: str = Field(default="close", description="Stop policy: close or leave")
     auto_trade_max_retries: int = Field(default=3, ge=0, le=10, description="Bounded retries for transient failures")
 
@@ -243,6 +244,21 @@ class Settings(BaseSettings):
                 except ValueError:
                     raise ValueError("MT5_LOGIN must be a valid integer")
         return v
+
+    @field_validator("auto_trade_stop_policy", mode="before")
+    @classmethod
+    def validate_auto_trade_stop_policy(cls, v):
+        """Normalise the Stop policy; only 'close' and 'leave' are meaningful."""
+        if v is None:
+            return "close"
+        if not isinstance(v, str):
+            return v
+        policy = v.strip().lower()
+        if not policy:
+            return "close"
+        if policy not in ("close", "leave"):
+            raise ValueError("AUTO_TRADE_STOP_POLICY must be 'close' or 'leave'")
+        return policy
 
     @field_validator("mt5_symbol")
     @classmethod

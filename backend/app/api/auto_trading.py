@@ -10,12 +10,12 @@ from .deps import get_auto_trading_controller
 router = APIRouter(prefix="/api/auto-trading", tags=["auto-trading"])
 
 
-@router.post("/start", response_model=AutoTradingStatus, summary="Start automatic M1 trading")
+@router.post("/start", response_model=AutoTradingStatus, summary="Start automatic trading")
 async def start(controller=Depends(get_auto_trading_controller)) -> AutoTradingStatus:
     return await controller.start()
 
 
-@router.post("/stop", response_model=AutoTradingStatus, summary="Stop automatic M1 trading")
+@router.post("/stop", response_model=AutoTradingStatus, summary="Stop automatic trading")
 async def stop(controller=Depends(get_auto_trading_controller)) -> AutoTradingStatus:
     return await controller.stop()
 

@@ -1,8 +1,19 @@
-﻿"""Automatic M1 trading controller and scheduler."""
+"""Automatic BUY-only trading controller (5-second entry cycle).
+
+The strategy is purely time based: one BUY, hold for a fixed duration from the
+confirmed fill, close that position, then wait until the entry cadence allows
+the next BUY. All scheduling uses a monotonic clock so wall-clock adjustments
+cannot stretch or compress the holding period or the entry interval.
+
+Only one strategy position may be open at a time. If an exit cannot be
+confirmed the scheduler keeps tracking that position and skips entries rather
+than opening an overlapping trade.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -15,17 +26,30 @@ from ..services.market_monitor import MarketMonitor
 
 logger = get_logger(__name__)
 
+# Granularity of a scheduler wait. Small enough that a stop request is honoured
+# promptly, large enough that the loop does not spin.
+_WAIT_SLICE_SECONDS = 0.1
+# How often MT5 is reconciled while waiting for an order to be confirmed.
+_CONFIRM_POLL_SECONDS = 0.1
+# Upper bound for MT5 to report a submitted entry or a completed exit.
+_CONFIRM_TIMEOUT_SECONDS = 5.0
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _broker_now(monitor: MarketMonitor) -> datetime:
-    offset = 0
-    clock = getattr(monitor, "_clock", None)
-    if clock is not None:
-        offset = getattr(clock, "offset_seconds", 0) or 0
-    return _utcnow() + timedelta(seconds=offset)
+def _make_comment(prefix: str, counter: int) -> str:
+    """Generate a valid MT5 order comment.
+
+    MT5 comments must be 31 characters or less. Format: prefix + counter.
+    Examples: AU_M1_B1, AU_M1_B99, AU_M1_C1
+    """
+    comment = f"{prefix}{counter}"
+    if len(comment) > 31:
+        # Truncate counter digits if needed (should never happen with reasonable cycle counts)
+        comment = comment[:31]
+    return comment
 
 
 class AutoTradingController:
@@ -50,8 +74,14 @@ class AutoTradingController:
         self._entry_time = None
         self._entry_volume = None
         self._current_profit = None
+        # Monotonic timestamp of the confirmed fill for the position opened by
+        # the current session. ``None`` for a position adopted from elsewhere.
+        self._entry_filled_monotonic = None
 
+        # Lifetime statistic, preserved across sessions.
         self._completed_cycles = 0
+        # Per-session counter that gates AUTO_TRADE_MAX_CYCLES.
+        self._session_completed_cycles = 0
         self._successful_entries = 0
         self._failed_entries = 0
         self._failed_exits = 0
@@ -68,15 +98,58 @@ class AutoTradingController:
         self._entry_in_progress = False
         self._exit_in_progress = False
 
+    # ------------------------------------------------------------------
+    # Clock and waiting primitives
+    # ------------------------------------------------------------------
+    def _now(self) -> float:
+        """Monotonic seconds. Never wall-clock: only elapsed time matters."""
+        return time.monotonic()
+
+    async def _sleep(self, seconds: float) -> None:
+        """Single sleep primitive, isolated so tests can drive a virtual clock."""
+        await asyncio.sleep(max(0.0, seconds))
+
+    async def _wait_until(self, deadline: float) -> None:
+        """Wait for a monotonic deadline, waking immediately on stop."""
+        while not self._stop_event.is_set():
+            remaining = deadline - self._now()
+            if remaining <= 0:
+                return
+            await self._sleep(min(remaining, _WAIT_SLICE_SECONDS))
+
+    def _publish_next_cycle(self, deadline: float) -> None:
+        """Express a monotonic deadline as a UTC timestamp for the status API."""
+        self._next_cycle = _utcnow() + timedelta(seconds=max(0.0, deadline - self._now()))
+
+    async def _wait_for_position(self, present: bool) -> bool:
+        """Reconcile until a strategy position is present/absent, or time out."""
+        deadline = self._now() + _CONFIRM_TIMEOUT_SECONDS
+        while True:
+            await self._reconcile_position_unlocked()
+            if (self._position_ticket is not None) is present:
+                return True
+            if self._now() >= deadline:
+                return False
+            await self._sleep(_CONFIRM_POLL_SECONDS)
+
+    # ------------------------------------------------------------------
+    # Start / stop
+    # ------------------------------------------------------------------
     async def start(self):
         async with self._lock:
             if self._task is not None and not self._task.done():
+                # A second Start must never launch a second trading loop.
                 return await self._build_status_unlocked()
 
             self._stop_requested = False
             self._stop_event.clear()
             self._status = "STARTING"
             self._last_error = None
+            # Every Start opens a fresh session: the cycle limit applies to
+            # this session only, and any adopted position starts with an
+            # unknown fill time (closed before the first entry).
+            self._session_completed_cycles = 0
+            self._entry_filled_monotonic = None
 
             try:
                 await self._preflight()
@@ -90,35 +163,69 @@ class AutoTradingController:
             self._start_balance = await self._account_balance()
             self._status = "RUNNING"
             self._task = asyncio.create_task(self._run(), name="auto-trading")
-            logger.info("Auto-trading started (session=%s)", self._session_id)
+            logger.info(
+                "Auto-trading started (session=%s, entry_interval=%ss, holding=%ss)",
+                self._session_id,
+                self.settings.auto_trade_entry_interval_seconds,
+                self.settings.auto_trade_holding_duration_seconds,
+            )
 
         return await self.status()
 
     async def stop(self):
         async with self._lock:
-            if self._task is None or self._task.done():
-                self._status = "STOPPED"
-                return await self._build_status_unlocked()
+            task = self._task
+            # Prevent any further entry immediately, then let the loop unwind.
             self._stop_requested = True
             self._stop_event.set()
-            self._status = "STOPPING"
-            task = self._task
+            if task is not None and not task.done():
+                self._status = "STOPPING"
 
-        try:
-            await asyncio.wait_for(task, timeout=60.0)
-        except Exception as exc:
-            logger.warning("Auto-trading stop wait failed: %s", exc)
+        if task is not None and not task.done():
+            try:
+                await asyncio.wait_for(task, timeout=60.0)
+            except Exception as exc:
+                logger.warning("Auto-trading stop wait failed: %s", exc)
+            if not task.done():
+                async with self._lock:
+                    self._status = "ERROR"
+                    self._last_error = "Auto-trading loop did not stop in time"
+                return await self.status()
 
         async with self._lock:
-            if self._position_ticket is not None and self.settings.auto_trade_stop_policy == "close":
+            # Report from live MT5 state, never from what the scheduler intended.
+            await self._reconcile_position_unlocked()
+            close_policy = self._stop_closes_position()
+            if self._position_ticket is not None and close_policy:
                 await self._close_position("stop requested")
+                await self._reconcile_position_unlocked()
+
             if self._position_ticket is None:
+                # Only report a flat book once MT5 confirms it.
                 self._status = "STOPPED"
-            else:
+            elif close_policy:
                 self._status = "ERROR"
+                self._last_error = (
+                    f"Strategy position {self._position_ticket} is still open after Stop"
+                )
+            else:
+                # 'leave' is deliberate: keep the position and say so.
+                self._status = "STOPPED"
+                self._last_exit_result = (
+                    f"stop policy 'leave': strategy position {self._position_ticket} left open"
+                )
             self._task = None
 
         return await self.status()
+
+    def _stop_closes_position(self) -> bool:
+        """Whether Stop must flatten the strategy position.
+
+        ``close`` is the safe default; anything other than an explicit
+        ``leave`` (including an unreadable value) closes.
+        """
+        policy = str(self.settings.auto_trade_stop_policy or "close").strip().lower()
+        return policy != "leave"
 
     async def status(self):
         async with self._lock:
@@ -129,6 +236,9 @@ class AutoTradingController:
             items = list(self._history)
             return AutoTradingHistoryResponse(items=items, history=items, count=len(items))
 
+    # ------------------------------------------------------------------
+    # Preflight
+    # ------------------------------------------------------------------
     async def _preflight(self):
         if not await self.connection.acall(self.connection.is_connected):
             raise RuntimeError("MT5 terminal is not connected")
@@ -174,8 +284,8 @@ class AutoTradingController:
             raise RuntimeError("Spread exceeds maximum")
 
         await self._reconcile_position_unlocked()
-        if self._position_ticket is not None:
-            raise RuntimeError("A strategy position is already open")
+        # An already-open strategy position is reconciled and closed by the
+        # run loop before any new entry is attempted.
 
     def _resolved_symbol(self):
         status = self.monitor.symbol_status
@@ -194,18 +304,33 @@ class AutoTradingController:
         except Exception:
             return None
 
+    # ------------------------------------------------------------------
+    # Scheduler
+    # ------------------------------------------------------------------
     async def _run(self):
+        """BUY at T, request the exit at T+holding, next BUY at T+interval.
+
+        The next entry deadline is anchored on the previous *confirmed* fill,
+        never on the close, so the intended gap between close and next entry is
+        (interval - holding). When the loop is late it never catches up: exactly
+        one entry follows, and the cadence restarts from that fill.
+        """
+        interval = float(self.settings.auto_trade_entry_interval_seconds)
+        next_entry_at = None
         try:
             while not self._stop_requested:
                 await self._reconcile_position_unlocked()
 
                 if self._position_ticket is not None:
-                    await self._close_position("reconciliation")
+                    await self._hold_and_exit()
                     if self._position_ticket is not None:
-                        await asyncio.sleep(1.0)
+                        # The exit is not confirmed: keep tracking this position
+                        # and skip entries. Never open an overlapping trade.
+                        self._last_error = "Strategy position still open; entries skipped"
+                        await self._sleep(1.0)
                         continue
 
-                if self._completed_cycles >= self.settings.auto_trade_max_cycles:
+                if self._session_completed_cycles >= self.settings.auto_trade_max_cycles:
                     self._last_error = "Maximum cycles per session reached"
                     self._stop_requested = True
                     break
@@ -216,20 +341,22 @@ class AutoTradingController:
                     self._stop_requested = True
                     break
 
-                self._next_cycle = self._next_minute_boundary()
-                await self._sleep_until(self._next_cycle, self._stop_event)
-                if self._stop_requested:
-                    break
-
-                await self._enter_cycle()
-
-                if self._position_ticket is not None:
-                    entry_time = self._entry_time or _utcnow()
-                    exit_deadline = entry_time + timedelta(seconds=60 - self.settings.auto_trade_exit_seconds_before_minute_end)
-                    await self._sleep_until(exit_deadline, self._stop_event)
+                if next_entry_at is not None:
+                    self._publish_next_cycle(next_entry_at)
+                    await self._wait_until(next_entry_at)
                     if self._stop_requested:
                         break
-                    await self._exit_cycle()
+                    late_by = self._now() - next_entry_at
+                    if late_by > interval:
+                        logger.warning(
+                            "Entry cycle delayed by %.1fs; missed cycles are skipped, not caught up",
+                            late_by,
+                        )
+
+                filled_at = await self._enter_cycle()
+                next_entry_at = (
+                    filled_at if filled_at is not None else self._now()
+                ) + interval
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -237,13 +364,34 @@ class AutoTradingController:
             self._status = "ERROR"
             logger.exception("Auto-trading loop failed")
         finally:
+            # A requested Stop follows the configured policy. A crash or an
+            # internal error still gets the emergency close, so a failure can
+            # never abandon a strategy position.
             if self._position_ticket is not None:
-                await self._close_position("shutdown")
+                if self._status == "ERROR" or self._stop_closes_position():
+                    await self._close_position("shutdown")
             async with self._lock:
                 if self._status != "ERROR":
                     self._status = "STOPPED"
                 self._task = None
                 self._next_cycle = None
+
+    async def _hold_and_exit(self):
+        """Honour the holding duration, then request and verify the close."""
+        filled_at = self._entry_filled_monotonic
+        if filled_at is None:
+            # Position adopted from a previous session: its fill time in this
+            # process is unknown, so close it before opening anything new.
+            # This is not a completed cycle of the current session.
+            await self._close_position("reconciliation")
+            return
+
+        exit_at = filled_at + float(self.settings.auto_trade_holding_duration_seconds)
+        self._publish_next_cycle(exit_at)
+        await self._wait_until(exit_at)
+        if self._stop_requested or self._now() < exit_at:
+            return
+        await self._exit_cycle()
 
     async def _session_loss(self):
         if self._start_balance is None:
@@ -256,22 +404,11 @@ class AutoTradingController:
             return None
         return self._start_balance - equity
 
-    def _next_minute_boundary(self):
-        now = _broker_now(self.monitor)
-        boundary = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
-        if (boundary - now).total_seconds() < 0.5:
-            boundary = boundary + timedelta(minutes=1)
-        return boundary
-
-    async def _sleep_until(self, target, event):
-        while not event.is_set():
-            now = _broker_now(self.monitor)
-            remaining = (target - now).total_seconds()
-            if remaining <= 0:
-                return
-            await asyncio.sleep(min(remaining, 0.5))
-
+    # ------------------------------------------------------------------
+    # Entry
+    # ------------------------------------------------------------------
     async def _enter_cycle(self):
+        """Submit one BUY and return the monotonic time its fill was confirmed."""
         self._entry_in_progress = True
         self._cycle_counter += 1
         cycle_id = f"{self._session_id}-{self._cycle_counter}"
@@ -284,18 +421,19 @@ class AutoTradingController:
             result = await self._submit_entry(cycle_id)
             if result is None:
                 if self._position_ticket is not None:
+                    self._entry_filled_monotonic = self._now()
                     self._last_entry_result = "entry ambiguous but strategy position exists"
                     self._last_error = self._last_entry_result
                     item.status = "ambiguous"
                     item.error = self._last_entry_result
                     logger.warning("%s", self._last_entry_result)
-                    return
+                    return self._entry_filled_monotonic
                 self._failed_entries += 1
                 self._last_entry_result = "entry submission returned no result"
                 self._last_error = self._last_entry_result
                 item.status = "failed"
                 item.error = self._last_entry_result
-                return
+                return None
 
             retcode = getattr(result, "retcode", None)
             done_code = getattr(self.connection.mt5, "TRADE_RETCODE_DONE", 10009)
@@ -308,21 +446,20 @@ class AutoTradingController:
                 item.status = "rejected"
                 item.error = self._last_entry_result
                 logger.warning("Entry rejected: retcode=%s comment=%s", retcode, getattr(result, "comment", None))
-                return
+                return None
 
-            for _ in range(6):
-                await asyncio.sleep(0.5)
-                await self._reconcile_position_unlocked()
-                if self._position_ticket is not None:
-                    break
-            if self._position_ticket is None:
+            if not await self._wait_for_position(True):
                 self._failed_entries += 1
                 self._last_entry_result = "entry reported done but no strategy position found"
                 self._last_error = self._last_entry_result
                 item.status = "ambiguous"
                 item.error = self._last_entry_result
-                return
+                return None
 
+            # The holding timer starts here: from the confirmed fill, not from
+            # the order-submission time.
+            filled_at = self._now()
+            self._entry_filled_monotonic = filled_at
             self._successful_entries += 1
             self._last_entry_result = f"entry filled ticket {self._position_ticket}"
             item.status = "filled"
@@ -330,17 +467,36 @@ class AutoTradingController:
             item.entry_time = self._entry_time
             item.volume = self._entry_volume
             logger.info("Entry filled: cycle=%s ticket=%s", cycle_id, self._position_ticket)
+            return filled_at
         except Exception as exc:
+            if self._position_ticket is not None and self._entry_filled_monotonic is None:
+                # The order did reach the market: hold it like any other fill
+                # instead of closing it immediately or re-submitting.
+                self._entry_filled_monotonic = self._now()
+                self._last_entry_result = f"entry ambiguous: {exc}"
+                self._last_error = self._last_entry_result
+                item.status = "ambiguous"
+                item.error = self._last_entry_result
+                logger.warning("%s", self._last_entry_result)
+                return self._entry_filled_monotonic
+            if self._stop_requested:
+                # Stop raced the entry: the order was never submitted.
+                item.status = "cancelled"
+                return None
             self._failed_entries += 1
             self._last_entry_result = f"entry failed: {exc}"
             self._last_error = self._last_entry_result
             item.status = "error"
             item.error = self._last_entry_result
             logger.exception("Entry failed")
+            return None
         finally:
             self._entry_in_progress = False
 
     async def _preflight_entry(self):
+        if self._stop_requested:
+            # Stop may arrive while an earlier wait or call was in flight.
+            raise RuntimeError("Stop requested; entry cancelled")
         if not await self.connection.acall(self.connection.is_connected):
             raise RuntimeError("MT5 terminal is not connected")
         terminal = await self.connection.acall(self.connection.mt5.terminal_info)
@@ -379,7 +535,7 @@ class AutoTradingController:
             "price": price,
             "deviation": self.settings.auto_trade_max_entry_deviation_points,
             "magic": self.settings.auto_trade_magic_number,
-            "comment": "AU_M1_B%d" % self._cycle_counter,
+            "comment": _make_comment("AU_M1_B", self._cycle_counter),
             "type_time": getattr(mt5, "ORDER_TIME_GTC", 0),
             "type_filling": filling,
         }
@@ -423,6 +579,9 @@ class AutoTradingController:
         )
         return result
 
+    # ------------------------------------------------------------------
+    # Exit
+    # ------------------------------------------------------------------
     async def _exit_cycle(self):
         self._exit_in_progress = True
         cycle_id = self._current_cycle_id
@@ -431,6 +590,7 @@ class AutoTradingController:
             await self._close_position("scheduled exit")
             if self._position_ticket is None:
                 self._completed_cycles += 1
+                self._session_completed_cycles += 1
                 self._last_exit_result = f"exit filled for {cycle_id}"
                 if item is not None:
                     item.status = "closed"
@@ -453,10 +613,15 @@ class AutoTradingController:
         finally:
             self._exit_in_progress = False
 
-    async def _close_position(self, reason):
+    async def _close_position(self, reason) -> bool:
+        """Request the close and confirm it against MT5.
+
+        Returns ``True`` only when MT5 reports no strategy position left; a
+        submitted request is never treated as a closed position on its own.
+        """
         await self._reconcile_position_unlocked()
         if self._position_ticket is None:
-            return
+            return True
 
         ticket = self._position_ticket
         volume = self._entry_volume
@@ -466,7 +631,7 @@ class AutoTradingController:
         for attempt in range(self.settings.auto_trade_max_retries + 1):
             await self._reconcile_position_unlocked()
             if self._position_ticket is None:
-                return
+                return True
 
             pos_volume = volume
             positions = await self._get_positions()
@@ -479,7 +644,7 @@ class AutoTradingController:
             price = getattr(quote, "bid", None) if quote else None
             if price is None:
                 self._last_error = "No bid price for exit"
-                await asyncio.sleep(1.0)
+                await self._sleep(1.0)
                 continue
 
             info = await self.connection.acall(mt5.symbol_info, symbol)
@@ -492,7 +657,7 @@ class AutoTradingController:
                 "price": price,
                 "deviation": self.settings.auto_trade_max_entry_deviation_points,
                 "magic": self.settings.auto_trade_magic_number,
-                "comment": "AU_M1_C%d" % (self._cycle_counter or 0),
+                "comment": _make_comment("AU_M1_C", self._cycle_counter or 0),
                 "type_time": getattr(mt5, "ORDER_TIME_GTC", 0),
                 "type_filling": self._filling_mode(mt5, info),
             }
@@ -501,29 +666,37 @@ class AutoTradingController:
                 result = await self.connection.acall(mt5.order_send, request)
             except Exception as exc:
                 self._last_error = f"Exit submission error: {exc}"
-                await asyncio.sleep(1.0)
+                await self._sleep(1.0)
+                continue
+
+            if result is None:
+                try:
+                    last_err = await self.connection.acall(mt5.last_error)
+                except Exception:  # noqa: BLE001
+                    last_err = None
+                logger.error("Exit order_send returned None; mt5.last_error=%s", describe_mt5_error(last_err))
+                self._last_error = f"Exit order_send returned None; {describe_mt5_error(last_err)}"
+                await self._sleep(1.0)
                 continue
 
             retcode = getattr(result, "retcode", None)
             done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
             if retcode != done_code:
                 self._last_error = f"Exit rejected: {getattr(result, 'comment', retcode)}"
-                await asyncio.sleep(1.0)
+                logger.warning("Exit rejected: retcode=%s comment=%s", retcode, getattr(result, "comment", None))
+                await self._sleep(1.0)
                 continue
 
-            for _ in range(6):
-                await asyncio.sleep(0.5)
-                await self._reconcile_position_unlocked()
-                if self._position_ticket is not None:
-                    break
-            if self._position_ticket is None:
+            # A submitted request is not a closed position: confirm with MT5.
+            if await self._wait_for_position(False):
                 self._current_profit = None
                 self._entry_volume = None
-                return
+                self._entry_filled_monotonic = None
+                return True
 
-        self._failed_exits += 1
         self._last_exit_result = f"Failed to close position {ticket}"
         self._last_error = self._last_exit_result
+        return False
 
     async def _get_positions(self):
         mt5 = self.connection.mt5
@@ -564,6 +737,7 @@ class AutoTradingController:
                     self._entry_volume = None
                     self._current_profit = None
                     self._entry_time = None
+                    self._entry_filled_monotonic = None
         except Exception as exc:
             self._last_error = f"Reconciliation failed: {exc}"
 
@@ -616,7 +790,7 @@ class AutoTradingController:
         st = AutoTradingStatus(
             status=self._status,
             symbol=self._resolved_symbol(),
-            timeframe="M1",
+            timeframe="5s",
             connection_status="connected" if terminal_connected else "disconnected",
             terminal_connected=terminal_connected,
             trading_enabled=self._status in ("RUNNING", "STARTING"),
@@ -632,6 +806,7 @@ class AutoTradingController:
             last_exit_result=self._last_exit_result,
             next_cycle=self._next_cycle,
             completed_cycles=self._completed_cycles,
+            session_completed_cycles=self._session_completed_cycles,
             successful_entries=self._successful_entries,
             failed_entries=self._failed_entries,
             failed_exits=self._failed_exits,

@@ -1,4 +1,4 @@
-﻿"""Schemas for automatic M1 trading status and history."""
+﻿"""Schemas for automatic trading status and history."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ class AutoTradingStatus(BaseModel):
     state: str = "STOPPED"
 
     symbol: str | None = None
-    timeframe: str = "M1"
+    timeframe: str = "5s"
     connection_status: str | None = None
     terminal_connected: bool = False
     trading_enabled: bool = False
@@ -41,6 +41,7 @@ class AutoTradingStatus(BaseModel):
     next_cycle_at: datetime | None = None
 
     completed_cycles: int = 0
+    session_completed_cycles: int = 0
     cycles_completed: int = 0
     successful_entries: int = 0
     failed_entries: int = 0
