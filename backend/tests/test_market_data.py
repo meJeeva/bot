@@ -21,8 +21,6 @@ from app.mt5.market_data import (
     ServerClock,
     broker_to_utc,
     compute_spread,
-    forming_candle,
-    latest_closed_candle,
     read_candles,
     read_quote,
 )
@@ -434,41 +432,11 @@ class TestCandleSchema:
 
     def test_rejects_unknown_fields(self):
         with pytest.raises(ValidationError):
-            self._candle(fibonacci_level=0.618)
+            self._candle(not_a_candle_field=0.618)
 
     def test_rejects_negative_volume(self):
         with pytest.raises(ValidationError):
             self._candle(tick_volume=-1)
-
-
-class TestCandleHelpers:
-    def _candle(self, is_closed: bool, hour: int) -> Candle:
-        return Candle(
-            time=1791792000 + hour * 900,
-            open_time_broker=datetime(2026, 10, 12, 8, 0, tzinfo=timezone.utc),
-            open_time_utc=datetime(2026, 10, 12, 5, 0, tzinfo=timezone.utc),
-            open=2400.0,
-            high=2401.0,
-            low=2399.0,
-            close=2400.5,
-            is_closed=is_closed,
-        )
-
-    def test_latest_closed_candle_skips_the_forming_bar(self):
-        candles = [self._candle(True, 0), self._candle(True, 1), self._candle(False, 2)]
-        assert latest_closed_candle(candles) is candles[1]
-
-    def test_forming_candle_is_the_last_when_open(self):
-        candles = [self._candle(True, 0), self._candle(False, 1)]
-        assert forming_candle(candles) is candles[1]
-
-    def test_no_forming_candle_when_all_closed(self):
-        candles = [self._candle(True, 0), self._candle(True, 1)]
-        assert forming_candle(candles) is None
-
-    def test_empty_series(self):
-        assert latest_closed_candle([]) is None
-        assert forming_candle([]) is None
 
 
 class TestSymbolPropertyReading:

@@ -1,134 +1,85 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import type { Candle, Timeframe } from '../../types/market';
-import { makeEvents, makeHealth, makeSeries, makeSnapshot } from '../../test/fixtures';
 import { DashboardView, type DashboardViewProps } from '../DashboardView';
+import { makeHealth, makeSnapshot, makeQuote } from '../../test/fixtures';
 
-// The chart needs a real canvas; stub it so these tests stay about behaviour.
-vi.mock('../../components/CandleChart', () => ({
-  CandleChart: ({ candles, timeframe }: { candles: Candle[]; timeframe: Timeframe }) => (
-    <div data-testid="candle-chart" data-count={candles.length} data-timeframe={timeframe} />
-  ),
-}));
-
-function renderView(overrides: Partial<DashboardViewProps> = {}) {
-  const series = makeSeries('M15', 20);
-
-  const props: DashboardViewProps = {
+function baseProps(overrides: Partial<DashboardViewProps> = {}): DashboardViewProps {
+  return {
     health: makeHealth(),
     snapshot: makeSnapshot(),
     streamState: 'connected',
     streamError: null,
     streamNotice: null,
-    noticeTimestamp: null,
-    lastMessageAt: '2026-10-12T05:45:26.500Z',
-    events: makeEvents(),
-    timeframe: 'M15',
-    onTimeframeChange: vi.fn(),
-    candles: series.candles,
-    series,
-    candlesLoading: false,
-    candlesError: null,
-    onRefreshHistory: vi.fn(),
-    executionStatus: null,
-    riskStatus: null,
-    executionHistory: null,
-    executionLoading: false,
-    executionError: null,
-    onRefreshExecution: vi.fn(),
     ...overrides,
   };
-
-  return { ...render(<DashboardView {...props} />), props };
 }
 
-describe('DashboardView - loading state', () => {
-  it('shows a connecting state before the first snapshot', () => {
-    renderView({ snapshot: null, streamState: 'loading', candles: [], series: null, candlesLoading: true });
+describe('DashboardView', () => {
+  it('shows the MT5 connection state and the selected symbol', () => {
+    render(<DashboardView {...baseProps()} />);
 
-    expect(screen.getByTestId('overall-status')).toBeInTheDocument();
-    expect(screen.getByTestId('compact-header')).toBeInTheDocument();
-    expect(screen.getByTestId('candle-chart')).toHaveAttribute('data-count', '0');
+    expect(screen.getByTestId('overall-badge')).toHaveTextContent('Live');
+    expect(screen.getByTestId('symbol-status')).toHaveTextContent('XAUUSD');
+    expect(screen.getByTestId('terminal-status')).toHaveTextContent('connected');
   });
 
-  it('does not claim a connection it does not have', () => {
-    renderView({ snapshot: null, streamState: 'loading', candles: [], series: null });
+  it('renders the latest bid and ask', () => {
+    render(<DashboardView {...baseProps()} />);
 
-    expect(screen.getByTestId('overall-status')).toBeInTheDocument();
-  });
-});
-
-describe('DashboardView - live state', () => {
-  it('shows live status with real quote values', () => {
-    renderView();
-
-    expect(screen.getByTestId('overall-status')).toBeInTheDocument();
-    expect(screen.getByTestId('compact-header')).toBeInTheDocument();
+    expect(screen.getByTestId('quote-bid')).toHaveTextContent('4185.58');
+    expect(screen.getByTestId('quote-ask')).toHaveTextContent('4186.14');
   });
 
-  it('renders the compact header with app name and symbol', () => {
-    renderView();
-
-    expect(screen.getByText('Fibonacci MT5 Bot')).toBeInTheDocument();
-    expect(screen.getByText('XAUUSD')).toBeInTheDocument();
-  });
-
-  it('renders all seven timeframe tabs', () => {
-    renderView();
-
-    const tablist = screen.getByRole('tablist', { name: 'Timeframe' });
-    expect(tablist).toBeInTheDocument();
-    // Tabs are rendered by TimeframePanel
-  });
-
-  it('notifies the container when the timeframe changes', async () => {
-    const user = await import('@testing-library/user-event').then(m => m.default.setup());
-    const { props } = renderView();
-
-    await user.click(
-      screen.getByRole('tab', { name: 'Timeframe H1' }),
+  it('never invents prices when the terminal supplies none', () => {
+    render(
+      <DashboardView
+        {...baseProps({
+          snapshot: makeSnapshot({
+            quote: null,
+            data_status: 'unavailable',
+            last_error: 'No executable tick has been received from MetaTrader 5 yet.',
+          }),
+        })}
+      />,
     );
 
-    expect(props.onTimeframeChange).toHaveBeenCalledWith('H1');
+    expect(screen.getByTestId('quote-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('global-error')).toHaveTextContent('No executable tick');
   });
 
-  it('marks the active timeframe as selected', () => {
-    renderView({ timeframe: 'H4' });
+  it('shows an unavailable bid as a placeholder, not zero', () => {
+    render(
+      <DashboardView
+        {...baseProps({
+          snapshot: makeSnapshot({ quote: makeQuote({ bid: null }) }),
+        })}
+      />,
+    );
 
-    const tab = screen.getByRole('tab', { name: 'Timeframe H4' });
-    expect(tab).toHaveAttribute('aria-selected', 'true');
+    const bid = screen.getByTestId('quote-bid');
+    expect(bid).toHaveTextContent('—');
+    expect(bid).not.toHaveTextContent('0.00');
   });
-});
 
-describe('DashboardView - market overview', () => {
-  it('shows market overview section', () => {
-    renderView();
+  it('reports a disconnected terminal as a state, not an error', () => {
+    render(
+      <DashboardView
+        {...baseProps({
+          snapshot: makeSnapshot({
+            connection: {
+              ...makeSnapshot().connection,
+              state: 'disconnected',
+              mt5_initialized: false,
+              terminal_connected: false,
+            },
+            quote: null,
+            data_status: 'unavailable',
+          }),
+        })}
+      />,
+    );
 
-    expect(screen.getByText('Market Overview')).toBeInTheDocument();
-  });
-
-  it('displays bid and ask prices', () => {
-    renderView();
-
-    // MarketOverview component should render bid/ask
-  });
-});
-
-describe('DashboardView - recent trades', () => {
-  it('shows execution & risk section', () => {
-    renderView();
-
-    expect(screen.getByText('Execution & Risk')).toBeInTheDocument();
-    expect(screen.getByTestId('execution-none')).toBeInTheDocument();
-  });
-});
-
-describe('DashboardView - performance risk summary', () => {
-  it('shows risk and account panel', () => {
-    renderView();
-
-    expect(screen.getByText('Risk & account')).toBeInTheDocument();
-    expect(screen.getByTestId('risk-daily-loss')).toBeInTheDocument();
+    expect(screen.getByTestId('overall-badge')).toHaveTextContent('Disconnected');
   });
 });

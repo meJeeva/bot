@@ -1,4 +1,4 @@
-"""Central timeframe mapping - the single source of truth for Phase 1.
+"""Central timeframe mapping - the single source of truth for the application.
 
 Exactly seven timeframes are supported:
 
@@ -133,11 +133,6 @@ TIMEFRAMES: Final[dict[str, TimeframeSpec]] = {
 
 SUPPORTED_TIMEFRAMES: Final[tuple[str, ...]] = TIMEFRAME_ORDER
 
-# Reverse lookup: MT5 integer constant -> canonical name.
-MT5_VALUE_TO_NAME: Final[dict[int, str]] = {
-    spec.mt5_value: spec.name for spec in TIMEFRAMES.values()
-}
-
 
 def normalize_timeframe(value: str) -> str:
     """Normalize and validate a timeframe name.
@@ -154,28 +149,6 @@ def normalize_timeframe(value: str) -> str:
     raise UnsupportedTimeframeError(value)
 
 
-def is_supported_timeframe(value: object) -> bool:
-    """True when ``value`` names a supported timeframe."""
-    if not isinstance(value, str):
-        return False
-    return value.strip().upper().replace("TIMEFRAME_", "") in TIMEFRAMES
-
-
 def get_timeframe(value: str) -> TimeframeSpec:
     """Return the :class:`TimeframeSpec` for ``value`` or raise."""
     return TIMEFRAMES[normalize_timeframe(value)]
-
-
-def get_mt5_timeframe(value: str) -> int:
-    """Return the MetaTrader5 integer constant for ``value``."""
-    return get_timeframe(value).mt5_value
-
-
-def timeframe_seconds(value: str) -> int:
-    """Return the length of one bar of ``value`` in seconds."""
-    return get_timeframe(value).seconds
-
-
-def name_for_mt5_value(mt5_value: int) -> str | None:
-    """Map an MT5 integer constant back to its canonical name."""
-    return MT5_VALUE_TO_NAME.get(int(mt5_value))

@@ -140,11 +140,11 @@ def setup_logging(level: str = "INFO", log_format: str = "console") -> None:
 
     # Replace handlers we own so repeated calls do not duplicate output.
     for handler in list(root.handlers):
-        if getattr(handler, "_fib_bot_handler", False):
+        if getattr(handler, "_app_handler", False):
             root.removeHandler(handler)
 
     handler = logging.StreamHandler(stream=sys.stdout)
-    handler._fib_bot_handler = True  # type: ignore[attr-defined]
+    handler._app_handler = True  # type: ignore[attr-defined]
 
     if str(log_format).lower() == "json":
         handler.setFormatter(JsonFormatter())

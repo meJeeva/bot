@@ -72,6 +72,18 @@ describe('QuotePanel', () => {
     expect(screen.getByTestId('quote-tick-time')).not.toHaveTextContent('—');
   });
 
+  it('labels the UTC and broker-server clocks truthfully', () => {
+    render(<QuotePanel quote={makeQuote()} />);
+
+    // The true UTC instant is 05:45:26; the broker's own wall clock is
+    // 08:45:26 (UTC+3). Each is shown on (and labelled with) its own clock.
+    expect(screen.getByText('Tick time (UTC)')).toBeInTheDocument();
+    expect(screen.getByText('Broker server time')).toBeInTheDocument();
+    expect(screen.getByTestId('quote-tick-time')).toHaveTextContent('05:45:26');
+    expect(screen.getByTestId('quote-tick-broker')).toHaveTextContent('8:45:26');
+    expect(screen.getByTestId('quote-tick-time')).toHaveTextContent('UTC');
+  });
+
   it('shows an unavailable age when the tick time is unknown', () => {
     render(<QuotePanel quote={makeQuote({ age_seconds: null, freshness: 'unknown' })} />);
 

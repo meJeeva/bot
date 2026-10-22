@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 /**
- * The dashboard talks to the Phase 1 Python backend.
+ * The dashboard talks to the read-only Python backend.
  *
  * In development the Vite dev server proxies `/api` and `/ws` to the backend,
  * so the browser sees a single origin and CORS never gets in the way. The

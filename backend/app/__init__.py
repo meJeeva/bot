@@ -1,4 +1,4 @@
-"""Fibonacci MT5 Bot - Phase 1 backend application package."""
+"""Read-only MT5 market-data backend application package."""
 
 __all__ = ["__version__"]
 

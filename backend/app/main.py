@@ -3,23 +3,13 @@
 One process owns one MT5 connection and one background market monitor; every
 HTTP and WebSocket handler only reads that shared state.
 
-This factory was rebuilt from the contracts that already exist in the
-repository - the routers in :mod:`app.api`, the dependencies in
-``app/api/deps.py``, the response schemas and the end-to-end tests. Behaviour
-is deliberately unchanged:
+Design rules encoded here:
 
-* **Read-only.** No route places, modifies or closes an order. Execution stays
-  behind the demo-only authorization object, which starts ``DISABLED`` and can
-  only be armed by an explicit operator action after a successful demo-account
-  verification.
+* **Read only.** The application never places, modifies or closes an order.
+  No route accepts a price, volume or account identity.
+* **One data path.** The monitor is the single market-data pipeline.
 * **Fail closed.** Services that are unavailable are reported as unavailable
   (503 / ``null`` / honest status payloads), never faked.
-* **One data path.** The monitor is the single market-data pipeline.
-
-The application currently runs **no trading strategy**: the historical
-Fibonacci / EMA / liquidity / session strategies have been removed and the app
-deliberately stays in a safe, non-trading state until a new strategy is
-implemented. No signal is generated and no order is ever placed.
 """
 
 from __future__ import annotations
@@ -34,15 +24,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.connection import router as connection_router
-from .api.execution import router as execution_router
 from .api.health import router as health_router
 from .api.market_data import router as market_router
-from .api.reports import router as reports_router
 from .api.websocket import router as websocket_router
 from .config import PROJECT_ROOT, Settings, get_settings
 from .errors import install_error_handlers
-from .execution import ExecutionAuthorization, Mt5ExecutionAdapter
-from .execution.authorization import DemoAccountVerifier
 from .logging_config import setup_logging
 from .mt5.connection import MT5Connection
 from .services.market_monitor import MarketMonitor
@@ -51,7 +37,7 @@ from .storage import StatusStore
 logger = logging.getLogger(__name__)
 
 #: The phase label published by ``GET /``; tracked by the API contract tests.
-PHASE = "phase-7-strategies-removed-no-trading"
+PHASE = "market-data-only"
 
 #: Documented surface advertised by ``GET /``.
 PUBLISHED_ENDPOINTS: tuple[str, ...] = (
@@ -64,15 +50,10 @@ PUBLISHED_ENDPOINTS: tuple[str, ...] = (
     "/api/market/timeframes",
     "/api/market/symbols",
     "/ws/market",
-    "/api/execution/status",
-    "/api/execution/enable",
-    "/api/execution/assess",
-    "/api/execution/history",
-    "/api/reports",
 )
 
 #: Durable state lives next to the other runtime data (git-ignored).
-DATABASE_PATH = PROJECT_ROOT / "backend" / "data" / "phase1_status.db"
+DATABASE_PATH = PROJECT_ROOT / "backend" / "data" / "mt5_status.db"
 
 
 def create_app(
@@ -103,10 +84,10 @@ def create_app(
         title=settings.app_name,
         version=settings.app_version,
         description=(
-            "Read-only XAUUSD market data from MetaTrader 5. No trading strategy "
-            "is configured and no order is placed, modified or closed. Execution "
-            "is demo-only, disabled by default and can only be armed by an "
-            "explicit operator action."
+            "Read-only XAUUSD market data from MetaTrader 5. The application "
+            "connects to the terminal, reads ticks, candles and account "
+            "information, and exposes them over REST and WebSocket. It cannot "
+            "place, modify or close an order."
         ),
         lifespan=lifespan,
     )
@@ -126,12 +107,10 @@ def create_app(
     app.include_router(connection_router)
     app.include_router(market_router)
     app.include_router(websocket_router)
-    app.include_router(execution_router)
-    app.include_router(reports_router)
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, Any]:
-        """Describe the running phase and the documented surface."""
+        """Describe the running build and the documented surface."""
         return {
             "name": settings.app_name,
             "version": settings.app_version,
@@ -166,11 +145,11 @@ async def _startup(app: FastAPI, settings: Settings, mt5_module: Any) -> None:
     monitor = MarketMonitor(connection, settings, store=store)
     app.state.monitor = monitor
 
-    authorization = ExecutionAuthorization(DemoAccountVerifier(settings))
-    app.state.execution_authorization = authorization
-    app.state.execution_adapter = Mt5ExecutionAdapter(connection, authorization)
-
-    connected = await connection.initialize()
+    try:
+        connected = await connection.initialize()
+    except Exception as exc:  # noqa: BLE001 - a missing terminal must not stop the API
+        connected = False
+        logger.error("MT5 initialisation failed: %s", exc)
     if not connected:
         logger.warning(
             "MT5 is not available at startup; the API will report degraded "
@@ -180,10 +159,8 @@ async def _startup(app: FastAPI, settings: Settings, mt5_module: Any) -> None:
     await monitor.start()
 
     logger.info(
-        "Application started (%s, read-only=%s, trading_enabled=%s)",
+        "Application started (%s, read_only=True, trading_enabled=False)",
         PHASE,
-        True,
-        False,
     )
 
 

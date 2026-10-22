@@ -102,18 +102,6 @@ class TestStatusStore:
         assert errors[0]["error"] == "boom"
         store.close()
 
-    def test_stats_reports_counts_and_path(self, tmp_path):
-        path = tmp_path / "status.db"
-        store = StatusStore(path)
-        store.initialize()
-        store.record_connection_event(make_status())
-
-        stats = store.stats()
-        assert stats.enabled is True
-        assert stats.connection_events == 1
-        assert stats.path == str(path)
-        store.close()
-
     def test_disabled_store_is_a_no_op(self, tmp_path):
         store = StatusStore(tmp_path / "status.db", enabled=False)
 

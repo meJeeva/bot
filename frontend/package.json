@@ -1,9 +1,9 @@
 {
-  "name": "fibonacci-mt5-bot-frontend",
+  "name": "mt5-market-data-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Phase 1 React dashboard for the Fibonacci MT5 bot (live market data only).",
+  "description": "Read-only React dashboard for MT5 market data (no strategy, no execution).",
   "scripts": {
     "dev": "vite --open",
     "build": "tsc --noEmit && vite build",
@@ -13,7 +13,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "lightweight-charts": "^5.0.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -21,7 +20,6 @@
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
-    "@testing-library/user-event": "^14.5.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

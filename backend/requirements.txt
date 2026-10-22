@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Fibonacci MT5 Bot - Phase 1 backend dependencies
+# MT5 market-data backend dependencies (read-only: no execution)
 # Target platform: Windows 10/11, Python 3.11 - 3.12
 #
 # MetaTrader5 ships Windows-only wheels, so this file is intentionally
@@ -20,6 +20,9 @@ python-dotenv>=1.0,<2.0
 # --- MetaTrader 5 desktop terminal integration ----------------------------
 # Official MetaQuotes Python package. Binds to the local MT5 terminal via IPC.
 MetaTrader5>=5.0.45,<6.0
+# MetaTrader5 returns OHLC series as a structured numpy array, and the test
+# fixtures build the same shape, so numpy is a direct dependency.
+numpy>=1.26
 
 # --- Testing --------------------------------------------------------------
 pytest>=8.2,<9.0

@@ -1,4 +1,4 @@
-"""Configuration management for the Fibonacci MT5 Bot.
+"""Configuration management for the read-only MT5 market-data application.
 
 Loads settings from environment variables with validation and provides
 access to configuration values throughout the application.
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     )
 
     # --- Core Application Settings ---
-    app_name: str = Field(default="Fibonacci MT5 Bot", description="Application name")
+    app_name: str = Field(default="MT5 Market Data", description="Application name")
     app_version: str = Field(default="0.1.0", description="Application version")
     app_env: str = Field(default="development", description="Application environment (development/production)")
     app_read_only: bool = True  # APP_READ_ONLY: safety switch, must remain True
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     log_format: str = Field(default="standard", description="Log format (standard/json)")
 
     # --- MetaTrader 5 Connection Settings ---
-    mt5_symbol: str = Field(default="XAUUSD", description="Primary symbol to trade")
+    mt5_symbol: str = Field(default="XAUUSD", description="Primary symbol to read")
     mt5_symbol_candidates: str = Field(
         default="XAUUSD,XAUUSD.,XAUUSDm,XAUUSD.c,#XAUUSD",
         description="Comma-separated list of symbol candidates for discovery"
@@ -87,115 +87,6 @@ class Settings(BaseSettings):
     database_path: Optional[str] = Field(
         default=None,
         description="SQLite database file. Empty uses the default runtime location.",
-    )
-
-    # --- Reports Settings ---
-    # Empty means "use the project's default reports root"
-    # (`app.reports.service.DEFAULT_REPORTS_DIR`, i.e. <repo>/reports/backtests),
-    # so the read-only reports API/dashboard scans the directory the
-    # historical-simulation CLI actually writes to without extra configuration.
-    reports_dir: str = Field(default="", description="Directory for storing reports (empty = project default)")
-
-    # --- Execution / Risk Management Settings ---
-    execution_min_stop_distance_points: float = Field(
-        default=100.0, ge=0, description="Minimum stop distance in points for execution"
-    )
-    execution_max_stop_distance_points: float = Field(
-        default=5000.0, ge=0, description="Maximum stop distance in points for execution"
-    )
-    execution_min_reward_risk: Union[float, None] = Field(
-        default=None, description="Minimum reward/risk for execution (defaults to strategy value)"
-    )
-    execution_max_spread_points: float = Field(
-        default=50.0, ge=0, description="Maximum spread in points allowed for execution"
-    )
-    execution_max_price_drift_points: float = Field(
-        default=300.0, ge=0,
-        description="Maximum price drift in points allowed between the current quote and the setup's primary entry level",
-    )
-    execution_max_signal_age_minutes: int = Field(
-        default=60, ge=0, description="Maximum signal age in minutes allowed"
-    )
-    execution_max_quote_age_seconds: float = Field(
-        default=10.0, gt=0, allow_inf_nan=False, description="Maximum quote age in seconds allowed"
-    )
-    execution_risk_per_trade_percent: float = Field(
-        default=0.5, gt=0, le=100, allow_inf_nan=False,
-        description="Risk per trade as percentage of equity"
-    )
-    execution_max_risk_per_trade_percent: float = Field(
-        default=2.0, gt=0, le=100, allow_inf_nan=False, description="Maximum risk per trade as percentage of equity"
-    )
-    execution_max_aggregate_risk_percent: float = Field(
-        default=5.0, ge=0, le=100, description="Maximum aggregate risk as percentage of equity"
-    )
-    execution_max_open_positions: int = Field(
-        default=3, ge=0, description="Maximum open positions allowed"
-    )
-    execution_max_daily_loss_percent: float = Field(
-        default=5.0, gt=0, le=100, allow_inf_nan=False, description="Maximum daily loss as percentage of equity"
-    )
-    execution_max_daily_drawdown_percent: float = Field(
-        default=10.0, gt=0, le=100, allow_inf_nan=False, description="Maximum daily drawdown as percentage of equity"
-    )
-    execution_max_consecutive_losses: Optional[int] = Field(
-        default=None, description="Consecutive-loss circuit breaker (null = disabled)"
-    )
-    execution_cost_allowance_percent: float = Field(
-        default=0.0, ge=0, le=100,
-        description="Cost allowance deducted from the per-trade risk budget, as a percentage",
-    )
-    execution_tp_policy: str = Field(
-        default="none", description="Take profit policy (none, fixed_rr, measured_move)"
-    )
-    execution_fixed_rr: float = Field(
-        default=2.0, gt=0, allow_inf_nan=False,
-        description="Fixed reward/risk ratio when tp_policy is fixed_rr"
-    )
-    execution_allowed_symbols: str = Field(
-        default="XAUUSD", description="Comma-separated symbols execution may trade"
-    )
-    execution_allowed_timeframes: str = Field(
-        default="M1,M5,M15,M30,H1,H4,D1",
-        description="Comma-separated timeframes execution may trade",
-    )
-    execution_allowed_symbols_list: Optional[List[str]] = Field(
-        default=None, description="Explicit override of the allowed-symbol list"
-    )
-    execution_allowed_timeframes_list: Optional[List[str]] = Field(
-        default=None, description="Explicit override of the allowed-timeframe list"
-    )
-    execution_block_on_external_positions: bool = Field(
-        default=False, description="Block execution when external positions exist"
-    )
-    execution_daily_reset: str = Field(
-        default="broker_midnight", description="Daily risk reset timing (utc_midnight or broker_midnight)"
-    )
-    execution_magic_number: int = Field(
-        default=1000, ge=0, description="Magic number for MT5 order identification"
-    )
-    execution_filling_policy: str = Field(
-        default="auto", description="Order filling policy (auto, fok, ioc, return)"
-    )
-    execution_configured: bool = Field(
-        default=False, description="Whether execution is configured and enabled"
-    )
-    execution_demo_login: Optional[int] = Field(
-        default=None, description="Demo login for execution authorization"
-    )
-    execution_demo_server: Optional[str] = Field(
-        default=None, description="Demo server for execution authorization"
-    )
-    execution_enabled: bool = Field(
-        default=False, description="Master switch to enable/disable execution"
-    )
-    execution_daily_profit_target_usd: float = Field(
-        default=10.0, ge=0,
-        description="Daily net profit target in account currency; once reached the bot stops accepting new entries (a stop-entry threshold, never a promise of income)",
-    )
-    execution_max_entries_per_day: int = Field(
-        default=4, ge=0,
-        description="Maximum new entries per risk day (0 = unlimited)",
     )
 
     # --- Credential-display safety ---
@@ -274,10 +165,6 @@ class Settings(BaseSettings):
             "app_read_only": self.app_read_only,
             "mt5_credentials_supplied": self.mt5_credentials_supplied,
             "allowed_origins": self.allowed_origins,
-            # Execution summary: booleans only, never the raw identity
-            "execution_enabled": self.execution_enabled,
-            "execution_demo_login_configured": self.execution_demo_login is not None,
-            "execution_demo_server_configured": bool(self.execution_demo_server),
         }
 
     # --- Validators ---
@@ -380,7 +267,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_application_settings(self) -> "Settings":
-        """Cross-validate generic application settings (non-strategy)."""
+        """Cross-validate application settings."""
         # Reconnect delay validation
         if (
             self.reconnect_max_delay_seconds
@@ -421,103 +308,20 @@ class Settings(BaseSettings):
 
         return self
 
-    @model_validator(mode="after")
-    def validate_execution_settings(self) -> "Settings":
-        """Execution safety: consistent limits, valid scope, explicit identity.
-
-        Inconsistent risk configuration refuses to start (it is never silently
-        clamped), and every error names the environment variable so the
-        operator can fix it directly.
-        """
-        # --- explicit demo identity is mandatory before execution can be enabled
-        if self.execution_enabled and self.execution_demo_login is None:
-            raise ValueError(
-                "EXECUTION_DEMO_LOGIN is required when EXECUTION_ENABLED is set"
-            )
-        if self.execution_enabled and self.execution_demo_server is None:
-            raise ValueError(
-                "EXECUTION_DEMO_SERVER is required when EXECUTION_ENABLED is set"
-            )
-
-        # --- risk limits must be internally consistent (rejected, not clamped)
-        if self.execution_risk_per_trade_percent > self.execution_max_risk_per_trade_percent:
-            raise ValueError(
-                "EXECUTION_RISK_PER_TRADE_PERCENT must not exceed "
-                "EXECUTION_MAX_RISK_PER_TRADE_PERCENT"
-            )
-        if self.execution_max_daily_loss_percent > self.execution_max_daily_drawdown_percent:
-            raise ValueError(
-                "EXECUTION_MAX_DAILY_LOSS_PERCENT must not exceed "
-                "EXECUTION_MAX_DAILY_DRAWDOWN_PERCENT"
-            )
-        if self.execution_min_stop_distance_points > self.execution_max_stop_distance_points:
-            raise ValueError(
-                "EXECUTION_MIN_STOP_DISTANCE_POINTS must not exceed "
-                "EXECUTION_MAX_STOP_DISTANCE_POINTS"
-            )
-
-        # --- allowed scope: string form and explicit list must agree ----------
-        provided = self.model_fields_set
-        if "execution_allowed_symbols_list" in provided:
-            symbols = [s.strip() for s in (self.execution_allowed_symbols_list or []) if str(s).strip()]
-            if not symbols:
-                raise ValueError("EXECUTION_ALLOWED_SYMBOLS must list at least one symbol")
-            self.execution_allowed_symbols_list = symbols
-        else:
-            symbols = [
-                s.strip()
-                for s in (self.execution_allowed_symbols or "").split(",")
-                if s.strip()
-            ]
-            if not symbols:
-                raise ValueError("EXECUTION_ALLOWED_SYMBOLS must list at least one symbol")
-            self.execution_allowed_symbols_list = symbols
-
-        if "execution_allowed_timeframes_list" in provided:
-            timeframes = [
-                tf.strip().upper()
-                for tf in (self.execution_allowed_timeframes_list or [])
-                if str(tf).strip()
-            ]
-        else:
-            timeframes = [
-                tf.strip().upper()
-                for tf in (self.execution_allowed_timeframes or "").split(",")
-                if tf.strip()
-            ]
-        if not timeframes:
-            raise ValueError("EXECUTION_ALLOWED_TIMEFRAMES must list at least one timeframe")
-        from app.mt5.timeframes import SUPPORTED_TIMEFRAMES
-
-        unsupported = [tf for tf in timeframes if tf not in set(SUPPORTED_TIMEFRAMES)]
-        if unsupported:
-            raise ValueError(
-                "EXECUTION_ALLOWED_TIMEFRAMES contains unsupported timeframes: "
-                + ", ".join(unsupported)
-                + "; supported are "
-                + ", ".join(SUPPORTED_TIMEFRAMES)
-            )
-        self.execution_allowed_timeframes_list = timeframes
-
-        # --- readiness flag (derived, never trusted from the environment) -----
-        self.execution_configured = bool(
-            self.execution_enabled
-            and self.execution_demo_login is not None
-            and (self.execution_demo_server or "").strip()
-        )
-
-        return self
-
-
 # Global settings instance and management functions
 _settings_cache: Optional[Settings] = None
 
 
 def get_settings() -> Settings:
-    """Get the cached settings instance."""
+    """Get the cached settings instance.
+
+    Invalid configuration raises :class:`ConfigurationError` with guidance
+    instead of a raw validation traceback, so a misconfigured deployment
+    fails with an actionable message.
+    """
     global _settings_cache
     if _settings_cache is None:
-        _settings_cache = Settings()
+        load_settings()
     return _settings_cache
 
 
@@ -547,7 +351,10 @@ def load_settings(**overrides) -> Settings:
             loc = error.get("loc", ())
             field_name = loc[0] if loc else "?"
             error_type = error.get("type", "?")
-            error_messages.append(f"  - {field_name}: {error_type}")
+            detail = error.get("msg", "")
+            # The validator messages name the environment variable that has to
+            # change, which is what the operator actually edits.
+            error_messages.append(f"  - {field_name}: {error_type} ({detail})")
         
         # Add specific field guidance based on error type
         if "APP_READ_ONLY" in str(e):
@@ -569,14 +376,6 @@ def reset_settings_cache() -> None:
     _settings_cache = None
 
 
-def build_settings(**overrides) -> Settings:
-    """Build settings instance without caching (primarily for testing).
-    
-    This function creates a new Settings instance without affecting the global cache.
-    """
-    return Settings(_env_file=None, **overrides)
-
-
 # Project root constant
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
 
@@ -592,5 +391,4 @@ __all__ = [
     "get_settings",
     "load_settings",
     "reset_settings_cache",
-    "build_settings",
 ]

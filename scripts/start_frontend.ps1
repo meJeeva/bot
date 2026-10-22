@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Starts the Phase 1 React dashboard development server.
+    Starts the read-only React dashboard development server.
 
 .DESCRIPTION
     Runs the Vite dev server, which proxies /api and /ws to the backend so the
@@ -47,14 +47,14 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 Push-Location $FrontendDir
 try {
     if ($Build) {
-        Write-Host 'Fibonacci MT5 Bot - production build' -ForegroundColor White
+        Write-Host 'MT5 Market Data - production build' -ForegroundColor White
         & npm run build
         if ($LASTEXITCODE -ne 0) {
             Stop-WithError 'The production build failed.' 'Read the TypeScript/Vite output above.'
         }
         Write-Host 'Build written to frontend\dist' -ForegroundColor Green
     } else {
-        Write-Host 'Fibonacci MT5 Bot - dashboard' -ForegroundColor White
+        Write-Host 'MT5 Market Data - dashboard' -ForegroundColor White
         Write-Host '  url  : http://localhost:5173'
         Write-Host "  proxy: /api and /ws -> the backend configured in vite.config.ts"
         Write-Host ''

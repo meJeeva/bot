@@ -151,9 +151,3 @@ class ErrorBody(BaseModel):
     code: str
     message: str
     detail: Any | None = None
-
-
-class ErrorResponse(BaseModel):
-    """Consistent error envelope: ``{"error": {...}}``."""
-
-    error: ErrorBody

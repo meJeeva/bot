@@ -44,7 +44,7 @@ class TestHealthyBackend:
         assert body["terminal_connected"] is True
         assert body["mt5_initialized"] is True
 
-    def test_always_declares_phase1_is_read_only(self, api_client):
+    def test_always_declares_the_backend_is_read_only(self, api_client):
         body = api_client.get("/api/health").json()
 
         assert body["read_only"] is True

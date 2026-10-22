@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fnmatch
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Sequence
 
@@ -41,6 +42,9 @@ TIMEFRAME_D1 = 16408
 ACCOUNT_TRADE_MODE_DEMO = 0
 ACCOUNT_TRADE_MODE_CONTEST = 1
 ACCOUNT_TRADE_MODE_REAL = 2
+
+SYMBOL_FILLING_FOK = 1
+SYMBOL_FILLING_IOC = 2
 
 # The MetaQuotes-Demo server observed during development runs at UTC+3.
 DEFAULT_SERVER_OFFSET_SECONDS = 10800
@@ -112,6 +116,15 @@ class FakeSymbolInfo:
         currency_base: str = "XAU",
         currency_profit: str = "USD",
         trade_mode: int = 4,
+        trade_contract_size: float | None = None,
+        volume_min: float = 0.01,
+        volume_step: float = 0.01,
+        volume_max: float = 100.0,
+        volume_limit: float = 0.0,
+        trade_stops_level: int = 0,
+        trade_freeze_level: int = 0,
+        filling_mode: int = SYMBOL_FILLING_FOK | SYMBOL_FILLING_IOC,
+        trade_tick_value_loss: float | None = None,
     ) -> None:
         self.name = name
         self.digits = digits
@@ -120,9 +133,24 @@ class FakeSymbolInfo:
         self.spread = spread
         self.trade_tick_size = trade_tick_size
         self.trade_tick_value = trade_tick_value
+        self.trade_tick_value_loss = (
+            trade_tick_value if trade_tick_value_loss is None else trade_tick_value_loss
+        )
         self.currency_base = currency_base
         self.currency_profit = currency_profit
         self.trade_mode = trade_mode
+        # Deliberately absent unless supplied: the production loader must
+        # refuse a symbol whose contract size the broker did not report, so a
+        # bare fake must not silently supply one.
+        if trade_contract_size is not None:
+            self.trade_contract_size = trade_contract_size
+        self.volume_min = volume_min
+        self.volume_step = volume_step
+        self.volume_max = volume_max
+        self.volume_limit = volume_limit
+        self.trade_stops_level = trade_stops_level
+        self.trade_freeze_level = trade_freeze_level
+        self.filling_mode = filling_mode
 
 
 class FakeTick:
@@ -176,17 +204,27 @@ class FakeAccountInfo:
         currency: str = "USD",
         trade_mode: int = ACCOUNT_TRADE_MODE_DEMO,
         balance: float = 100000.0,
+        equity: float | None = None,
+        margin_free: float | None = None,
     ) -> None:
         self.login = login
         self.server = server
         self.currency = currency
         self.trade_mode = trade_mode
         self.balance = balance
+        self.equity = balance if equity is None else equity
+        self.margin_free = (self.equity * 10) if margin_free is None else margin_free
         self.leverage = 100
 
 
+@dataclass
 class FakeMT5:
-    """Stand-in for the ``MetaTrader5`` package."""
+    """Stand-in for the ``MetaTrader5`` package.
+
+    Only market-data, terminal and account functions are implemented. No
+    order-submission function exists on this fake, so a read-only cycle cannot
+    accidentally exercise one.
+    """
 
     def __init__(
         self,
@@ -307,37 +345,13 @@ class FakeMT5:
             return series
         return series[-count:]
 
-    def copy_rates_range(
-        self,
-        symbol: str,
-        timeframe: int,
-        date_from: datetime,
-        date_to: datetime,
-    ) -> np.ndarray | None:
-        """Historical range read (Phase 3 replay), mirroring the MetaQuotes call.
-
-        The MetaTrader5 Python package converts the naive ``datetime``
-        arguments with the **local machine** timezone (``mktime``) and the
-        terminal compares the result against raw broker epoch seconds - so
-        ``.timestamp()`` on a naive datetime *is* that conversion, and the fake
-        applies the same one. This keeps tests honest about the exact window
-        the reader asked for, on any machine timezone.
-        """
-        self._record("copy_rates_range", symbol, timeframe, date_from, date_to)
-        series = self.rates.get((symbol, timeframe))
-        if series is None:
-            return None
-        start = int(date_from.timestamp())
-        end = int(date_to.timestamp())
-        mask = (series["time"] >= start) & (series["time"] < end)
-        return series[mask]
-
     # -- helpers used by tests -------------------------------------------
     def set_tick(self, symbol: str, tick: FakeTick | None) -> None:
         self.ticks[symbol] = tick
 
     def set_rates(self, symbol: str, timeframe: int, series: np.ndarray | None) -> None:
         self.rates[(symbol, timeframe)] = series
+
 
 
 def gold_terminal_with_live_tick(

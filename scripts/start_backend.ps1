@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Starts the Phase 1 FastAPI backend against the local MetaTrader 5 terminal.
+    Starts the read-only FastAPI backend against the local MetaTrader 5 terminal.
 
 .DESCRIPTION
     Activates the project virtual environment and runs uvicorn. Host and port
@@ -72,7 +72,7 @@ if (-not $Port -or $Port -le 0) {
     $Port = [int]$configuredPort
 }
 
-Write-Host 'Fibonacci MT5 Bot - backend' -ForegroundColor White
+Write-Host 'MT5 Market Data - backend' -ForegroundColor White
 Write-Host "  python : $VenvPython"
 Write-Host "  bind   : http://${BindHost}:$Port"
 Write-Host "  api    : http://${BindHost}:$Port/docs"
@@ -82,7 +82,7 @@ Write-Host 'Press Ctrl+C to stop the backend (this shuts the MT5 connection down
 Write-Host ''
 
 $uvicornArgs = @(
-    '-m', 'uvicorn', 'app.main:app',
+    '-m', 'uvicorn', '--factory', 'app.main:create_app',
     '--host', $BindHost,
     '--port', "$Port"
 )

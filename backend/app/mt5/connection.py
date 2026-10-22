@@ -3,8 +3,8 @@
 Design notes
 ------------
 * **Read-only.** This module never imports or calls an order-execution
-  function. Phase 1 is a market-data phase; the only MetaTrader functions used
-  are ``initialize``, ``shutdown``, ``terminal_info``, ``account_info``,
+  function. The only MetaTrader functions used are ``initialize``, ``shutdown``,
+  ``terminal_info``, ``account_info``,
   ``version``, ``last_error``, ``symbol_info``, ``symbol_info_tick``,
   ``symbol_select``, ``symbols_get``, ``symbols_total`` and
   ``copy_rates_from_pos``.
@@ -28,7 +28,6 @@ import os
 import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, TypeVar
@@ -162,15 +161,6 @@ def discover_terminal_paths() -> list[str]:
     return found
 
 
-@dataclass
-class ConnectionSnapshot:
-    """Raw information read from the terminal, plus safe derived status."""
-
-    initialized: bool
-    terminal_connected: bool
-    status: MT5Status
-
-
 class MT5Connection:
     """Owns the lifecycle of the MetaTrader 5 terminal connection."""
 
@@ -222,8 +212,20 @@ class MT5Connection:
     # Serialised execution
     # ------------------------------------------------------------------
     def call(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
-        """Run a MetaTrader call synchronously under the connection lock."""
+        """Run a MetaTrader call synchronously under the connection lock.
+
+        A single positional argument is passed *directly* rather than through
+        ``*args`` unpacking. The compiled MetaTrader5 functions behave
+        differently in the two cases: when the request mapping arrives
+        unpacked, the terminal rejects it with retcode -2 ("Unnamed
+        arguments not allowed"), which would turn every order request into an
+        uncertain outcome. This was found against a real terminal (the XM
+        Global demo account) and only shows up there - a Python fake cannot
+        see the difference.
+        """
         with self._lock:
+            if not kwargs and len(args) == 1:
+                return func(args[0])
             return func(*args, **kwargs)
 
     async def acall(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
@@ -248,7 +250,15 @@ class MT5Connection:
                 return True
 
             self._state = ConnectionState.CONNECTING
-            mt5 = self.mt5
+            try:
+                mt5 = self.mt5
+            except MT5UnavailableError as exc:
+                # The MetaTrader5 package itself cannot be used. Record the
+                # reason so the status endpoint (and the UI) reports it,
+                # instead of leaving the connection "connecting" forever and
+                # raising on every poll.
+                self._register_failure(str(exc))
+                return False
 
             attempts = self._initialization_candidates()
             last_error_text = "no terminal candidate available"

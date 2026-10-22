@@ -1,4 +1,10 @@
-import { formatDuration, formatPoints, formatPrice, formatTime } from '../services/format';
+import {
+  formatBrokerWallClock,
+  formatDuration,
+  formatPoints,
+  formatPrice,
+  formatUtcDateTime,
+} from '../services/format';
 import type { Quote } from '../types/market';
 import { ValueOrUnavailable } from './ValueOrUnavailable';
 
@@ -70,12 +76,14 @@ export function QuotePanel({ quote }: QuotePanelProps) {
 
           <dl className="kv kv-compact">
             <div>
-              <dt>Tick (UTC)</dt>
-              <dd data-testid="quote-tick-time">{formatTime(quote.tick_time_utc)}</dd>
+              <dt>Tick time (UTC)</dt>
+              <dd data-testid="quote-tick-time">{formatUtcDateTime(quote.tick_time_utc)}</dd>
             </div>
             <div>
-              <dt>Tick (broker)</dt>
-              <dd>{formatTime(quote.tick_time_broker)}</dd>
+              <dt>Broker server time</dt>
+              <dd data-testid="quote-tick-broker">
+                {formatBrokerWallClock(quote.tick_time_broker)}
+              </dd>
             </div>
             <div>
               <dt>Age</dt>

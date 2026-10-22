@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Runs the Phase 1 automated tests.
+    Runs the automated tests.
 
 .DESCRIPTION
     Runs the backend pytest suite and the frontend vitest suite and reports a
@@ -113,7 +113,7 @@ if ($runFrontend) {
 # ---------------------------------------------------------------------------
 Write-Host ''
 Write-Host '=============================================' -ForegroundColor White
-Write-Host ' Phase 1 test summary' -ForegroundColor White
+Write-Host ' Test summary' -ForegroundColor White
 Write-Host '=============================================' -ForegroundColor White
 foreach ($entry in $results.GetEnumerator()) {
     $colour = if ($entry.Value -like 'PASSED*') { 'Green' } elseif ($entry.Value -like 'SKIPPED*') { 'Yellow' } else { 'Red' }

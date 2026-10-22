@@ -34,7 +34,6 @@ from ..mt5.market_data import (
     MarketDataError,
     ServerClock,
     read_candles,
-    read_candles_range,
     read_quote,
 )
 from ..mt5.symbols import (
@@ -255,9 +254,6 @@ class MarketMonitor:
             status.server_time_offset_seconds = self._clock.offset_seconds
         return status
 
-    def connection_status_sync(self) -> MT5Status:
-        return self.stamp_server_clock(self._connection.build_status_sync())
-
     async def connection_status(self) -> MT5Status:
         status = await self._connection.acall(self._connection.build_status_sync)
         return self.stamp_server_clock(status)
@@ -302,9 +298,6 @@ class MarketMonitor:
             logger.warning("Could not refresh connection status: %s", exc)
         return self.build_snapshot_sync()
 
-    def latest_snapshot(self) -> MarketSnapshot:
-        return self.build_snapshot_sync()
-
     def candle_series(self, timeframe: str) -> CandleSeries | None:
         return self._candle_cache.get(normalize_timeframe(timeframe))
 
@@ -313,78 +306,6 @@ class MarketMonitor:
         name = normalize_timeframe(timeframe)
         series = await self._refresh_timeframe(name, limit)
         return self._trim(series, limit) if len(series.candles) > limit else series
-
-    async def get_candles_range(
-        self,
-        timeframe: str,
-        start_utc: datetime,
-        end_utc: datetime,
-        *,
-        max_candles: int,
-    ) -> CandleSeries:
-        """Read genuine historical bars for an explicit UTC range (Phase 3 replay).
-
-        Reuses the live symbol resolution and the measured broker clock offset,
-        and serialises the MetaTrader call onto the shared worker thread exactly
-        like the live path - it never touches the live candle cache and never
-        blocks the monitoring loop. ``max_candles`` bounds the request so a wide
-        range cannot exhaust memory; exceeding it raises rather than silently
-        trimming, so replay always starts from the requested start time.
-        """
-        name = normalize_timeframe(timeframe)
-
-        properties = self._symbol_properties
-        if properties is None:
-            raise MarketDataError(
-                "symbol_unresolved",
-                "Cannot read historical candles: no trading symbol has been resolved yet.",
-            )
-
-        # Bar completion depends on the broker offset, so measure it first.
-        if not self._clock.measured:
-            await self._read_and_store_quote()
-
-        spec = get_timeframe(name)
-        now = _utcnow()
-        connection = self._connection
-
-        try:
-            mt5 = connection.mt5
-            candles: list[Candle] = await connection.acall(
-                read_candles_range,
-                mt5,
-                properties.name,
-                name,
-                start_utc,
-                end_utc,
-                offset_seconds=self._clock.offset_seconds,
-                now_utc=now,
-                max_candles=max_candles,
-            )
-        except MarketDataError:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            raise MarketDataError(
-                "candle_read_failed",
-                f"Historical candle read failed for {name}: {exc}",
-            ) from exc
-
-        closed = [candle for candle in candles if candle.is_closed]
-        return CandleSeries(
-            symbol=properties.name,
-            timeframe=name,
-            timeframe_seconds=spec.seconds,
-            requested_limit=max(1, len(candles)),
-            count=len(candles),
-            candles=candles,
-            latest_candle=candles[-1] if candles else None,
-            latest_closed_candle=closed[-1] if closed else None,
-            server_time_offset_seconds=self._clock.offset_seconds,
-            time_convention="broker_server_local",
-            incomplete_history=False,
-            warnings=[],
-            generated_at=now,
-        )
 
     # ==================================================================
     # Monitoring loop

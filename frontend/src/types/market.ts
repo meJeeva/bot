@@ -1,5 +1,5 @@
 /**
- * Types mirroring the Phase 1 backend Pydantic schemas.
+ * Types mirroring the backend Pydantic schemas.
  *
  * Deliberately hand-written and narrow rather than generated, so the dashboard
  * fails loudly at compile time if the API contract changes.
@@ -9,16 +9,6 @@
  */
 
 export type Timeframe = 'M1' | 'M5' | 'M15' | 'M30' | 'H1' | 'H4' | 'D1';
-
-export const TIMEFRAMES: readonly Timeframe[] = [
-  'M1',
-  'M5',
-  'M15',
-  'M30',
-  'H1',
-  'H4',
-  'D1',
-] as const;
 
 /** Freshness of the market data the backend is holding. */
 export type DataStatus = 'live' | 'stale' | 'unavailable';
@@ -149,22 +139,6 @@ export interface MarketSnapshot {
   read_only: boolean;
 }
 
-export interface CandleSeries {
-  symbol: string;
-  timeframe: Timeframe;
-  timeframe_seconds: number;
-  requested_limit: number;
-  count: number;
-  candles: Candle[];
-  latest_candle: Candle | null;
-  latest_closed_candle: Candle | null;
-  server_time_offset_seconds: number | null;
-  time_convention: string;
-  incomplete_history: boolean;
-  warnings: string[];
-  generated_at: string;
-}
-
 export interface HealthResponse {
   status: 'ok' | 'degraded';
   app_name: string;
@@ -185,25 +159,6 @@ export interface WsStatusMessage {
   message: string;
   code: string | null;
   timestamp: string;
-}
-
-export interface ConnectionEvent {
-  timestamp: string;
-  state: string;
-  initialized: boolean;
-  connected: boolean;
-  account_type: string | null;
-  symbol: string | null;
-  error: string | null;
-}
-
-export interface ConnectionEventsResponse {
-  /** False when the backend has SQLite persistence switched off. */
-  enabled: boolean;
-  total_events: number;
-  total_snapshots: number;
-  events: ConnectionEvent[];
-  errors: ConnectionEvent[];
 }
 
 export interface ApiErrorBody {

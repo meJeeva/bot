@@ -285,12 +285,17 @@ class TestAuxiliaryEndpoints:
         body = api_client.get("/").json()
 
         # The phase label tracks the current build; only the label changes.
-        assert body["phase"] == "phase-7-strategies-removed-no-trading"
+        assert body["phase"] == "market-data-only"
         assert body["read_only"] is True
         assert body["trading_enabled"] is False
+        assert body["live_trading_supported"] is False
         assert "/ws/market" in body["endpoints"]
-        assert "/api/execution/status" in body["endpoints"]
-        assert "/api/execution/enable" in body["endpoints"]
+        assert not [path for path in body["endpoints"] if "execution" in path]
+
+    def test_no_execution_routes_are_mounted(self, api_client):
+        paths = api_client.get("/openapi.json").json()["paths"]
+
+        assert not [path for path in paths if "execution" in path or "report" in path]
 
     def test_openapi_documents_every_documented_endpoint(self, api_client):
         paths = api_client.get("/openapi.json").json()["paths"]

@@ -1,95 +1,62 @@
-import { collectHealthIssues } from '../services/health';
-import { deriveOverallState, type OverallState } from '../services/dashboardState';
-import type {
-  Candle,
-  CandleSeries,
-  ConnectionEventsResponse,
-  HealthResponse,
-  MarketSnapshot,
-  StreamState,
-  Timeframe,
-} from '../types/market';
-import type { ExecutionHistoryOut, ExecutionStatusOut, RiskStatusOut } from '../types/execution';
-import { MarketOverview, CompactHeader } from '../components/MarketOverview';
-import { TimeframePanel } from '../components/TimeframePanel';
-import { ExecutionStatusPanel } from '../components/ExecutionStatusPanel';
-import { RiskAndAccountPanel } from '../components/RiskAndAccountPanel';
+import { deriveOverallState } from '../services/dashboardState';
+import type { HealthResponse, MarketSnapshot, StreamState } from '../types/market';
+import { ConnectionStatusCard } from '../components/ConnectionStatusCard';
+import { QuotePanel } from '../components/QuotePanel';
+import { Pill, type PillTone } from '../components/terminal/ui';
+
+/** Connection state as a pill tone. */
+const STATE_TONE: Record<string, PillTone> = {
+  live: 'positive',
+  stale: 'warning',
+  reconnecting: 'warning',
+  disconnected: 'negative',
+  error: 'negative',
+  loading: 'neutral',
+};
 
 export interface DashboardViewProps {
-  // Market data
   health: HealthResponse | null;
   snapshot: MarketSnapshot | null;
   streamState: StreamState;
   streamError: string | null;
   streamNotice: string | null;
-  noticeTimestamp: string | null;
-  lastMessageAt: string | null;
-  events: ConnectionEventsResponse | null;
-
-  // Timeframe & chart
-  timeframe: Timeframe;
-  onTimeframeChange: (timeframe: Timeframe) => void;
-  candles: Candle[];
-  series: CandleSeries | null;
-  candlesLoading: boolean;
-  candlesError: string | null;
-  onRefreshHistory: () => void;
-
-  // Execution & risk
-  executionStatus: ExecutionStatusOut | null;
-  riskStatus: RiskStatusOut | null;
-  executionHistory: ExecutionHistoryOut | null;
-  executionLoading: boolean;
-  executionError: string | null;
-  onRefreshExecution: () => void;
 }
 
 /**
- * Single-page unified dashboard.
+ * The only screen: everything the application is allowed to do.
  *
- * All sections are stacked vertically in one page:
- * 1. Compact header
- * 2. Market overview
- * 3. Main chart with 7 timeframes
- * 4. Execution & risk (read-only)
- *
- * The trading strategies have been removed, so there is no strategy section.
+ * The data comes from the backend's read-only endpoints. Nothing here can arm
+ * an execution system, submit an order or change a setting, and an unavailable
+ * value is rendered as unavailable rather than fabricated.
  */
-export function DashboardView(props: DashboardViewProps) {
-  const overallState: OverallState = deriveOverallState(props.snapshot, props.streamState);
-  const combinedError = props.candlesError ?? props.streamError;
-
-  const quote = props.snapshot?.quote ?? null;
-
-  // Account info is not available from the read-only API.
-  const accountEquity = null;
-  const accountBalance = null;
-  const todayPnl = null;
-  const openPositions = 0;
-  const entriesUsedToday = 0;
-
-  // Health issues (computed for the preserved system-health monitoring).
-  collectHealthIssues({
-    streamState: props.streamState,
-    streamError: props.streamError,
-    streamNotice: props.streamNotice,
-    events: props.events,
-    snapshot: props.snapshot,
-    health: props.health,
-    candlesError: props.candlesError,
-    executionStatus: props.executionStatus,
-  });
+export function DashboardView({
+  health,
+  snapshot,
+  streamState,
+  streamError,
+  streamNotice,
+}: DashboardViewProps) {
+  const overallState = deriveOverallState(snapshot, streamState);
+  const quote = snapshot?.quote ?? null;
+  const symbol = snapshot?.symbol?.resolved ?? snapshot?.symbol?.requested ?? null;
+  const combinedError = streamError ?? snapshot?.last_error ?? null;
 
   return (
-    <div className="dashboard" data-overall-state={overallState}>
-      {/* 1. Compact Header */}
-      <CompactHeader
-        snapshot={props.snapshot}
-        streamState={props.streamState}
-        streamError={props.streamError}
-        lastMessageAt={props.lastMessageAt}
-        health={props.health}
-      />
+    <div className="dashboard">
+      <header className="app-header">
+        <div>
+          <h1>MT5 Market Data</h1>
+          <p className="subtitle">
+            Read-only market data from the MetaTrader 5 terminal
+            {symbol ? ` · ${symbol}` : ''}
+          </p>
+        </div>
+        <div className="section-actions">
+          <Pill tone={STATE_TONE[overallState] ?? 'neutral'} testId="overall-pill">
+            {overallState}
+          </Pill>
+        </div>
+      </header>
 
       {combinedError ? (
         <p className="alert alert-error" data-testid="global-error">
@@ -97,55 +64,26 @@ export function DashboardView(props: DashboardViewProps) {
         </p>
       ) : null}
 
-      {/* 2. Market Overview */}
-      <MarketOverview
-        snapshot={props.snapshot}
-        quote={quote}
-        accountEquity={accountEquity}
-        accountBalance={accountBalance}
-        todayPnl={todayPnl}
-        openPositions={openPositions}
-        entriesUsedToday={entriesUsedToday}
-      />
-
-      {/* 3. Main Chart with 7 Timeframes */}
-      <TimeframePanel
-        timeframe={props.timeframe}
-        onTimeframeChange={props.onTimeframeChange}
-        summaries={props.snapshot?.timeframes ?? {}}
-        summary={props.snapshot?.timeframes?.[props.timeframe] ?? null}
-        candles={props.candles}
-        loading={props.candlesLoading}
-        error={props.candlesError}
-        symbol={props.snapshot?.symbol?.resolved ?? props.series?.symbol ?? null}
-        onRefresh={props.onRefreshHistory}
-      />
-
-      {/* 4. Execution & Risk (read-only) */}
-      <section className="section" aria-labelledby="execution-risk-heading">
-        <header className="section-header">
-          <h2 id="execution-risk-heading">Execution & Risk</h2>
-        </header>
-        {props.executionError && (
-          <p className="alert alert-error" data-testid="execution-error">
-            {props.executionError}
-          </p>
-        )}
-        <div className="card-grid">
-          <ExecutionStatusPanel status={props.executionStatus} onRefresh={props.onRefreshExecution} />
-          <RiskAndAccountPanel risk={props.riskStatus} />
-        </div>
-      </section>
+      <div className="card-grid">
+        <ConnectionStatusCard
+          state={overallState}
+          snapshot={snapshot}
+          health={health}
+          streamNotice={streamNotice}
+        />
+        <QuotePanel quote={quote} />
+      </div>
 
       <footer className="app-footer">
         <p>
-          Data source: MetaTrader 5 desktop terminal via the official Python API. Timestamps are
-          displayed in Indian Standard Time (Asia/Kolkata).
+          Data source: MetaTrader 5 desktop terminal via the official Python API. Tick and bar times
+          come from the broker server&apos;s clock; user-facing timestamps are labelled with the
+          timezone they were converted to.
         </p>
         <p className="footnote">
-          <strong>Read-only dashboard.</strong> No orders are placed, modified or closed. No trading
-          strategy is configured. Execution is disabled by default and requires explicit operator
-          arming.
+          <strong>Read-only.</strong> This application never connects an execution system, never
+          submits, modifies or closes an order, and never changes a backend setting. When the
+          terminal is unavailable, missing prices are shown as unavailable rather than invented.
         </p>
       </footer>
     </div>

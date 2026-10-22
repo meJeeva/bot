@@ -7,6 +7,8 @@ No real terminal is involved - :class:`tests.fakes.FakeMT5` stands in.
 
 from __future__ import annotations
 
+import dis
+import sys
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -14,6 +16,7 @@ import pytest
 from app.config import Settings
 from app.mt5.connection import (
     MT5Connection,
+    MT5UnavailableError,
     classify_account,
     describe_mt5_error,
     discover_terminal_paths,
@@ -73,6 +76,34 @@ class TestInitialization:
         assert status.mt5_initialized is False
         assert status.last_connection_error is not None
         assert "Authorization failed" in status.last_connection_error
+
+    async def test_a_missing_metatrader5_package_is_reported_not_raised(self, monkeypatch):
+        """A machine without the MetaTrader5 package must fail honestly.
+
+        The reason has to reach the status payload (and therefore the UI) so
+        the operator can see *why* the terminal is unavailable.
+        """
+
+        def _unavailable():
+            raise MT5UnavailableError(
+                "The MetaTrader5 Python package is not installed."
+            )
+
+        monkeypatch.setattr("app.mt5.connection._import_mt5", _unavailable)
+        connection = MT5Connection(build())  # no module override: the real import is used
+
+        assert await connection.initialize() is False
+        assert connection.is_connected() is False
+
+        status = connection.build_status_sync()
+        assert status.state is ConnectionState.ERROR
+        assert status.mt5_initialized is False
+        assert "not installed" in (status.last_connection_error or "")
+
+        # A later retry must not raise either: the failure is recorded, not thrown.
+        await connection.acall(lambda: (_sleep_backoff(connection)))
+        assert await connection.acall(connection.reconnect_sync) is False
+        assert connection.build_status_sync().state is ConnectionState.ERROR
 
     async def test_terminal_that_is_not_connected_to_its_server_is_rejected(self):
         fake = FakeMT5(terminal=FakeTerminalInfo(connected=False))
@@ -259,6 +290,63 @@ class TestAccountClassification:
         connection = MT5Connection(build(), mt5_module=fake)
         assert connection.initialize_sync() is True
         assert connection.build_status_sync().account_type is AccountType.LIVE
+
+
+class TestCallConvention:
+    """The compiled MetaTrader5 functions need their argument passed directly.
+
+    When a request mapping reaches the compiled function through ``*args``
+    unpacking, the terminal rejects it with retcode -2 ("Unnamed arguments
+    not allowed"). A Python fake cannot see the difference - it was found
+    against a real terminal - so the calling convention itself is asserted
+    here.
+    """
+
+    @staticmethod
+    def _caller_opcode(function):
+        """The bytecode opcode used to call *function*."""
+        seen: list[str] = []
+
+        def tracer(frame, event, arg):  # pragma: no cover - traced frames
+            if event == "call":
+                caller = frame.f_back
+                if caller is not None:
+                    opcode = None
+                    for instruction in dis.get_instructions(caller.f_code):
+                        if instruction.offset <= caller.f_lasti:
+                            opcode = instruction.opname
+                    seen.append(opcode or "")
+            return tracer
+
+        def target(*args, **kwargs):
+            return args, kwargs
+
+        sys.settrace(tracer)
+        try:
+            function(target, {"action": 1})
+        finally:
+            sys.settrace(None)
+        assert seen, "the call was not observed"
+        return seen[-1]
+
+    def test_a_single_mapping_argument_is_passed_directly(self):
+        connection = MT5Connection(build(), mt5_module=FakeMT5())
+        opcode = self._caller_opcode(connection.call)
+        assert opcode == "CALL"
+        assert opcode != "CALL_FUNCTION_EX"
+
+    def test_several_arguments_keep_the_ordinary_call(self):
+        connection = MT5Connection(build(), mt5_module=FakeMT5())
+        captured: dict[str, object] = {}
+
+        def target(*args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return args, kwargs
+
+        connection.call(target, 1, 2)
+        assert captured["args"] == (1, 2)
+        assert captured["kwargs"] == {}
 
 
 class TestCredentialHygiene:

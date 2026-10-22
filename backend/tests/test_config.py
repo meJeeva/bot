@@ -24,7 +24,7 @@ def build(**overrides) -> Settings:
 
 
 class TestValidConfiguration:
-    def test_defaults_are_valid_and_phase1_safe(self):
+    def test_defaults_are_valid_and_read_only_safe(self):
         settings = build()
 
         assert settings.app_read_only is True
@@ -139,6 +139,24 @@ class TestEnvironmentLoading:
         assert "Invalid application configuration" in message
         assert "APP_READ_ONLY" in message
         assert ".env" in message
+
+    def test_get_settings_reports_a_bad_terminal_path_with_guidance(
+        self, monkeypatch, tmp_path
+    ):
+        """A missing terminal must fail with guidance, not a raw traceback."""
+        monkeypatch.setenv(
+            "MT5_TERMINAL_PATH", str(tmp_path / "nope" / "terminal64.exe")
+        )
+        reset_settings_cache()
+        try:
+            with pytest.raises(ConfigurationError) as info:
+                get_settings()
+
+            message = str(info.value)
+            assert "Invalid application configuration" in message
+            assert "MT5_TERMINAL_PATH" in message
+        finally:
+            reset_settings_cache()
 
     def test_get_settings_is_cached_and_resettable(self, monkeypatch):
         monkeypatch.setenv("MT5_SYMBOL", "XAUUSD")

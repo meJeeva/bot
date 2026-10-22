@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Prepares the Phase 1 development environment on Windows.
+    Prepares the Windows development environment.
 
 .DESCRIPTION
     Verifies the Python and Node toolchains, creates the Python virtual
@@ -63,7 +63,7 @@ function Get-ToolVersion {
     }
 }
 
-Write-Host 'Fibonacci MT5 Bot - Phase 1 Windows setup' -ForegroundColor White
+Write-Host 'MT5 Market Data - Windows setup' -ForegroundColor White
 Write-Host "Project root: $ProjectRoot"
 
 # ---------------------------------------------------------------------------

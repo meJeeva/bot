@@ -3,10 +3,9 @@
  *
  * The single most important rule here: an unavailable value renders as an
  * explicit placeholder, never as `0`. The backend reports missing prices as
- * `null` and the UI must not turn that into a number the trader might act on.
+ * `null` and the UI must not turn that into a number a trader might act on.
  */
 
-export const UNAVAILABLE = 'unavailable';
 export const UNAVAILABLE_GLYPH = '—';
 
 export function isUsableNumber(value: number | null | undefined): value is number {
@@ -28,14 +27,6 @@ export function formatPoints(value: number | null | undefined): string {
     return UNAVAILABLE_GLYPH;
   }
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
-/** Format a raw number with a fixed precision. */
-export function formatNumber(value: number | null | undefined, decimals = 2): string {
-  if (!isUsableNumber(value)) {
-    return UNAVAILABLE_GLYPH;
-  }
-  return value.toFixed(decimals);
 }
 
 /** Whole seconds as a compact human duration. */
@@ -109,27 +100,53 @@ export function formatDateTime(iso: string | null | undefined): string {
 }
 
 /**
- * The bar's open time as a UTC epoch in seconds, for the chart axis.
+ * An ISO timestamp rendered as a UTC date and time, explicitly labelled UTC.
  *
- * The chart is explicitly UTC-based, so we use the backend's offset-corrected
- * `open_time_utc` rather than the raw broker value. Using the raw value would
- * silently shift every bar by the server offset.
+ * Used for values the backend documents as true UTC (a tick instant, a bar
+ * open time, a report's generation time). Rendering them in IST and calling
+ * them UTC - or the reverse - would silently shift the instant.
  */
-export function toChartTime(candle: { open_time_utc: string; time: number }): number {
-  const parsed = new Date(candle.open_time_utc);
-  if (Number.isNaN(parsed.getTime())) {
-    return candle.time;
-  }
-  return Math.floor(parsed.getTime() / 1_000);
-}
-
-export function formatVolume(value: number | null | undefined): string {
-  if (!isUsableNumber(value)) {
+export function formatUtcDateTime(iso: string | null | undefined): string {
+  if (!iso) {
     return UNAVAILABLE_GLYPH;
   }
-  return value.toLocaleString();
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return UNAVAILABLE_GLYPH;
+  }
+  return (
+    parsed.toLocaleString(IST_LOCALE, {
+      timeZone: 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }) + ' UTC'
+  );
 }
 
-export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
-  return count === 1 ? singular : plural;
+/**
+ * A broker-server wall clock reading, with no timezone conversion at all.
+ *
+ * MetaTrader tick and bar times are broker-server local time; the backend
+ * carries them in a UTC-tagged field purely for transport. Converting them to
+ * the operator's zone (or to IST) would invent an instant that does not exist
+ * on the server, so this formatter reads the wall clock as-is. Always show it
+ * next to a label naming the broker server.
+ */
+export function formatBrokerWallClock(iso: string | null | undefined): string {
+  if (!iso) {
+    return UNAVAILABLE_GLYPH;
+  }
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return UNAVAILABLE_GLYPH;
+  }
+  return parsed.toLocaleTimeString(IST_LOCALE, {
+    timeZone: 'UTC',
+    hour12: true,
+  }).replace(/am/gi, 'AM').replace(/pm/gi, 'PM');
 }
