@@ -168,3 +168,49 @@ export interface ApiErrorBody {
     detail: unknown;
   };
 }
+
+export interface AutoTradingStatus {
+  status: string;
+  auto_trading_status?: string;
+  trading_status?: string;
+  state?: string;
+
+  symbol: string | null;
+  timeframe: string;
+  connection_status: string | null;
+  terminal_connected: boolean;
+  trading_enabled: boolean;
+
+  balance: number | null;
+  equity: number | null;
+
+  position_status: string;
+  position_state?: string;
+  position_ticket: number | null;
+  ticket?: number | null;
+  entry_price: number | null;
+  entry_time: string | null;
+  current_profit: number | null;
+  profit?: number | null;
+  unrealized_pnl?: number | null;
+
+  last_entry_result: string | null;
+  last_exit_result: string | null;
+
+  next_cycle: string | null;
+  next_scheduled_cycle?: string | null;
+  next_cycle_at?: string | null;
+
+  completed_cycles: number;
+  cycles_completed?: number;
+  successful_entries: number;
+  failed_entries: number;
+  failed_exits: number;
+
+  last_error: string | null;
+  error?: string | null;
+
+  session_id: string | null;
+  cycle_id: string | null;
+  magic_number: number | null;
+}

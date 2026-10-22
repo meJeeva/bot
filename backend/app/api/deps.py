@@ -43,3 +43,14 @@ def monitor_from_websocket(websocket: WebSocket) -> MarketMonitor:
             status_code=503,
         )
     return monitor
+
+def get_auto_trading_controller(request: Request):
+    controller = getattr(request.app.state, "auto_trading", None)
+    if controller is None:
+        from ..errors import ApiError
+        raise ApiError(
+            "auto_trading_unavailable",
+            "The automatic trading controller is not available.",
+            status_code=503,
+        )
+    return controller

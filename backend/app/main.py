@@ -24,6 +24,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.connection import router as connection_router
+from .api.auto_trading import router as auto_trading_router
 from .api.health import router as health_router
 from .api.market_data import router as market_router
 from .api.websocket import router as websocket_router
@@ -50,6 +51,10 @@ PUBLISHED_ENDPOINTS: tuple[str, ...] = (
     "/api/market/timeframes",
     "/api/market/symbols",
     "/ws/market",
+    "/api/auto-trading/start",
+    "/api/auto-trading/stop",
+    "/api/auto-trading/status",
+    "/api/auto-trading/history",
 )
 
 #: Durable state lives next to the other runtime data (git-ignored).
@@ -107,6 +112,7 @@ def create_app(
     app.include_router(connection_router)
     app.include_router(market_router)
     app.include_router(websocket_router)
+    app.include_router(auto_trading_router)
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, Any]:
@@ -158,6 +164,10 @@ async def _startup(app: FastAPI, settings: Settings, mt5_module: Any) -> None:
 
     await monitor.start()
 
+    from .services.auto_trading import AutoTradingController
+    controller = AutoTradingController(settings, connection, monitor, store=store)
+    app.state.auto_trading = controller
+
     logger.info(
         "Application started (%s, read_only=True, trading_enabled=False)",
         PHASE,
@@ -170,7 +180,13 @@ async def _shutdown(app: FastAPI) -> None:
     store = getattr(app.state, "store", None)
     monitor = getattr(app.state, "monitor", None)
     connection = getattr(app.state, "connection", None)
+    controller = getattr(app.state, "auto_trading", None)
 
+    if controller is not None:
+        try:
+            await controller.stop()
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to stop auto-trading cleanly")
     for name, component, method in (
         ("market monitor", monitor, "stop"),
         ("mt5 connection", connection, "shutdown"),

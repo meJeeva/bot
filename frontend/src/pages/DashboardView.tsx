@@ -2,6 +2,7 @@ import { deriveOverallState } from '../services/dashboardState';
 import type { HealthResponse, MarketSnapshot, StreamState } from '../types/market';
 import { ConnectionStatusCard } from '../components/ConnectionStatusCard';
 import { QuotePanel } from '../components/QuotePanel';
+import { AutoTradingPanel } from '../components/AutoTradingPanel';
 import { Pill, type PillTone } from '../components/terminal/ui';
 
 /** Connection state as a pill tone. */
@@ -72,6 +73,7 @@ export function DashboardView({
           streamNotice={streamNotice}
         />
         <QuotePanel quote={quote} />
+        <AutoTradingPanel />
       </div>
 
       <footer className="app-footer">

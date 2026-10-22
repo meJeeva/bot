@@ -1,15 +1,8 @@
-/**
- * Typed REST client for the backend's read-only market-data endpoints.
- *
- * Every request is a GET. There is no order, execution, strategy or backtest
- * surface: the trading strategies and execution pipeline have been removed, and
- * this client cannot mutate the account.
- */
-
-import type {
+﻿import type {
   ApiErrorBody,
   HealthResponse,
   MarketSnapshot,
+  AutoTradingStatus,
 } from '../types/market';
 
 /** Empty by default so the Vite dev proxy handles routing (and CORS). */
@@ -38,15 +31,23 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
   );
 }
 
-/** One GET request against the backend, with the shared error envelope. */
-async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+interface RequestOptions {
+  method?: string;
+  body?: unknown;
+  signal?: AbortSignal;
+}
+
+/** One request against the backend, with the shared error envelope. */
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const method = options.method ?? 'GET';
   let response: Response;
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      ...(signal ? { signal } : {}),
+      method,
+      headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
     });
   } catch (cause) {
     throw new ApiError(0, 'network_error', `Cannot reach the backend at ${API_BASE_URL || '/'}.`, cause);
@@ -79,9 +80,16 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 export const api = {
-  health: (signal?: AbortSignal) => request<HealthResponse>('/api/health', signal),
+  health: (signal?: AbortSignal) => request<HealthResponse>('/api/health', { signal }),
 
-  snapshot: (signal?: AbortSignal) => request<MarketSnapshot>('/api/market/snapshot', signal),
+  snapshot: (signal?: AbortSignal) => request<MarketSnapshot>('/api/market/snapshot', { signal }),
+
+  autoTrading: {
+    start: () => request<AutoTradingStatus>('/api/auto-trading/start', { method: 'POST' }),
+    stop: () => request<AutoTradingStatus>('/api/auto-trading/stop', { method: 'POST' }),
+    status: (signal?: AbortSignal) => request<AutoTradingStatus>('/api/auto-trading/status', { signal }),
+    history: (signal?: AbortSignal) => request<{ items: unknown[]; count: number }>('/api/auto-trading/history', { signal }),
+  },
 };
 
 /** Human-readable message for any thrown value. */

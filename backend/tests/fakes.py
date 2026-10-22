@@ -46,6 +46,24 @@ ACCOUNT_TRADE_MODE_REAL = 2
 SYMBOL_FILLING_FOK = 1
 SYMBOL_FILLING_IOC = 2
 
+TRADE_ACTION_DEAL = 1
+ORDER_TYPE_BUY = 0
+ORDER_TYPE_SELL = 1
+ORDER_TIME_GTC = 0
+ORDER_FILLING_FOK = 0
+ORDER_FILLING_IOC = 1
+TRADE_RETCODE_DONE = 10009
+TRADE_RETCODE_DONE_PARTIAL = 10010
+
+TRADE_ACTION_DEAL = 1
+ORDER_TYPE_BUY = 0
+ORDER_TYPE_SELL = 1
+ORDER_TIME_GTC = 0
+ORDER_FILLING_FOK = 0
+ORDER_FILLING_IOC = 1
+TRADE_RETCODE_DONE = 10009
+TRADE_RETCODE_DONE_PARTIAL = 10010
+
 # The MetaQuotes-Demo server observed during development runs at UTC+3.
 DEFAULT_SERVER_OFFSET_SECONDS = 10800
 
@@ -193,6 +211,8 @@ class FakeTerminalInfo:
         self.language = language
         self.server = server
         self.community_account = 0
+        self.trade_allowed = True
+        self.trade_allowed = True
 
 
 class FakeAccountInfo:
@@ -218,6 +238,78 @@ class FakeAccountInfo:
 
 
 @dataclass
+@dataclass
+class FakePosition:
+    ticket: int
+    time: int = 0
+    time_msc: int = 0
+    type: int = 0
+    magic: int = 0
+    identifier: int = 0
+    reason: int = 0
+    volume: float = 0.01
+    price_open: float = 0.0
+    sl: float = 0.0
+    tp: float = 0.0
+    price_current: float = 0.0
+    swap: float = 0.0
+    profit: float = 0.0
+    symbol: str = "XAUUSD"
+    comment: str = ""
+    external_id: str = ""
+
+
+@dataclass
+class FakeOrderResult:
+    retcode: int = 10009
+    deal: int = 1
+    order: int = 1
+    volume: float = 0.01
+    price: float = 0.0
+    bid: float = 0.0
+    ask: float = 0.0
+    comment: str = "done"
+    request_id: int = 0
+    retcode_external: int = 0
+    position: int = None
+
+
+@dataclass
+class FakePosition:
+    ticket: int
+    time: int = 0
+    time_msc: int = 0
+    type: int = 0
+    magic: int = 0
+    identifier: int = 0
+    reason: int = 0
+    volume: float = 0.01
+    price_open: float = 0.0
+    sl: float = 0.0
+    tp: float = 0.0
+    price_current: float = 0.0
+    swap: float = 0.0
+    profit: float = 0.0
+    symbol: str = "XAUUSD"
+    comment: str = ""
+    external_id: str = ""
+
+
+@dataclass
+class FakeOrderResult:
+    retcode: int = 10009
+    deal: int = 1
+    order: int = 1
+    volume: float = 0.01
+    price: float = 0.0
+    bid: float = 0.0
+    ask: float = 0.0
+    comment: str = "done"
+    request_id: int = 0
+    retcode_external: int = 0
+    position: int = None
+
+
 class FakeMT5:
     """Stand-in for the ``MetaTrader5`` package.
 
@@ -251,6 +343,10 @@ class FakeMT5:
         self.ticks = dict(ticks) if ticks is not None else {}
         self.rates = dict(rates) if rates is not None else {}
         self.terminal = terminal or FakeTerminalInfo()
+        if not hasattr(self.terminal, 'trade_allowed'):
+            self.terminal.trade_allowed = True
+        if not hasattr(self.terminal, 'trade_allowed'):
+            self.terminal.trade_allowed = True
         self.account = account or FakeAccountInfo()
 
         self.initialize_ok = initialize_ok
@@ -262,6 +358,16 @@ class FakeMT5:
         self.initialized = False
         self.shutdown_calls = 0
         self.selected: set[str] = set()
+        self.positions: list[FakePosition] = []
+        self.order_send_retcode = 10009
+        self.order_send_results = None
+        self.next_position_ticket = 1001
+        self.trade_allowed = True
+        self.positions: list[FakePosition] = []
+        self.order_send_retcode = 10009
+        self.order_send_results = None
+        self.next_position_ticket = 1001
+        self.trade_allowed = True
 
     # -- instrumentation -------------------------------------------------
     def _record(self, name: str, *args: Any, **kwargs: Any) -> None:
@@ -296,10 +402,14 @@ class FakeMT5:
     # -- terminal / account ---------------------------------------------
     def terminal_info(self) -> FakeTerminalInfo | None:
         self._record("terminal_info")
+        if self.terminal is not None:
+            self.terminal.trade_allowed = getattr(self, 'trade_allowed', True)
         return self.terminal if self.initialized else None
 
     def account_info(self) -> FakeAccountInfo | None:
         self._record("account_info")
+        if self.account is not None and not hasattr(self.account, 'trade_allowed'):
+            self.account.trade_allowed = True
         return self.account if self.initialized else None
 
     # -- symbols ---------------------------------------------------------
@@ -332,6 +442,134 @@ class FakeMT5:
     def symbol_info_tick(self, name: str) -> FakeTick | None:
         self._record("symbol_info_tick", name)
         return self.ticks.get(name)
+
+    def order_send(self, request):
+        self._record("order_send", request)
+        if self.order_send_results:
+            result = self.order_send_results.pop(0)
+        else:
+            result = FakeOrderResult(retcode=self.order_send_retcode)
+        try:
+            req = request if isinstance(request, dict) else dict(request)
+        except Exception:
+            req = {}
+        symbol = req.get("symbol")
+        volume = req.get("volume", 0.01)
+        order_type = req.get("type", 0)
+        price = req.get("price")
+        position = req.get("position")
+        magic = req.get("magic", 0)
+        comment = req.get("comment", "")
+
+        if result.retcode == 10009:
+            if position is None:
+                ticket = self.next_position_ticket
+                self.next_position_ticket += 1
+                pos = FakePosition(
+                    ticket=ticket,
+                    time=int(__import__("time").time() + 10800),
+                    type=order_type,
+                    magic=magic,
+                    volume=volume,
+                    price_open=price if price is not None else 0.0,
+                    price_current=price if price is not None else 0.0,
+                    profit=0.0,
+                    symbol=symbol or "XAUUSD",
+                    comment=comment,
+                )
+                self.positions.append(pos)
+                result.order = ticket
+                result.deal = ticket
+                result.position = ticket
+                result.price = price if price is not None else 0.0
+                result.volume = volume
+            else:
+                self.positions = [p for p in self.positions if p.ticket != position]
+                result.order = position
+                result.deal = position
+                result.position = position
+                result.price = price if price is not None else 0.0
+                result.volume = volume
+        if result.comment is None:
+            result.comment = "done"
+        return result
+
+    def order_check(self, request):
+        self._record("order_check", request)
+        return type("FakeOrderCheckResult", (), {"retcode": 0, "comment": "done", "balance": 100000.0, "equity": 100000.0, "profit": 0.0, "margin": 0.0, "margin_free": 100000.0, "margin_level": 0.0})()
+
+    def positions_get(self, symbol=None, ticket=None):
+        self._record("positions_get", symbol, ticket)
+        result = list(self.positions)
+        if symbol is not None:
+            result = [p for p in result if p.symbol == symbol]
+        if ticket is not None:
+            result = [p for p in result if p.ticket == ticket]
+        return result
+
+    def order_send(self, request):
+        self._record("order_send", request)
+        if self.order_send_results:
+            result = self.order_send_results.pop(0)
+        else:
+            result = FakeOrderResult(retcode=self.order_send_retcode)
+        try:
+            req = request if isinstance(request, dict) else dict(request)
+        except Exception:
+            req = {}
+        symbol = req.get("symbol")
+        volume = req.get("volume", 0.01)
+        order_type = req.get("type", 0)
+        price = req.get("price")
+        position = req.get("position")
+        magic = req.get("magic", 0)
+        comment = req.get("comment", "")
+
+        if result.retcode == 10009:
+            if position is None:
+                ticket = self.next_position_ticket
+                self.next_position_ticket += 1
+                pos = FakePosition(
+                    ticket=ticket,
+                    time=int(__import__("time").time() + 10800),
+                    type=order_type,
+                    magic=magic,
+                    volume=volume,
+                    price_open=price if price is not None else 0.0,
+                    price_current=price if price is not None else 0.0,
+                    profit=0.0,
+                    symbol=symbol or "XAUUSD",
+                    comment=comment,
+                )
+                self.positions.append(pos)
+                result.order = ticket
+                result.deal = ticket
+                result.position = ticket
+                result.price = price if price is not None else 0.0
+                result.volume = volume
+            else:
+                self.positions = [p for p in self.positions if p.ticket != position]
+                result.order = position
+                result.deal = position
+                result.position = position
+                result.price = price if price is not None else 0.0
+                result.volume = volume
+        if result.comment is None:
+            result.comment = "done"
+        return result
+
+    def order_check(self, request):
+        self._record("order_check", request)
+        return type("FakeOrderCheckResult", (), {"retcode": 0, "comment": "done", "balance": 100000.0, "equity": 100000.0, "profit": 0.0, "margin": 0.0, "margin_free": 100000.0, "margin_level": 0.0})()
+
+    def positions_get(self, symbol=None, ticket=None):
+        self._record("positions_get", symbol, ticket)
+        result = list(self.positions)
+        if symbol is not None:
+            result = [p for p in result if p.symbol == symbol]
+        if ticket is not None:
+            result = [p for p in result if p.ticket == ticket]
+        return result
 
     # -- rates -----------------------------------------------------------
     def copy_rates_from_pos(

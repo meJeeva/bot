@@ -95,6 +95,17 @@ class Settings(BaseSettings):
         description="Expose the raw account login instead of masking it (trusted local machines only)",
     )
 
+    # --- Automatic M1 trading settings ---
+    auto_trade_magic_number: int = Field(default=9001, description="Magic number for the automatic M1 strategy")
+    auto_trade_volume: float = Field(default=0.01, gt=0, description="Configured order volume for the automatic M1 strategy")
+    auto_trade_max_spread_points: float = Field(default=100.0, ge=0, description="Maximum permitted spread in points")
+    auto_trade_max_entry_deviation_points: int = Field(default=20, ge=0, description="Maximum allowed entry price deviation in points")
+    auto_trade_max_daily_loss: float = Field(default=100.0, ge=0, description="Maximum permitted daily loss")
+    auto_trade_max_cycles: int = Field(default=1000, ge=1, description="Maximum number of cycles per session")
+    auto_trade_exit_seconds_before_minute_end: int = Field(default=5, ge=1, le=55, description="Seconds before minute end to request exit")
+    auto_trade_stop_policy: str = Field(default="close", description="Stop policy: close or leave")
+    auto_trade_max_retries: int = Field(default=3, ge=0, le=10, description="Bounded retries for transient failures")
+
     # --- Computed Fields ---
     @property
     def allowed_origins_list(self) -> List[str]:
