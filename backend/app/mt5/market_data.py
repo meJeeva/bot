@@ -25,7 +25,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, getcontext
 from typing import Any
+
+getcontext().prec = 50
 
 from ..logging_config import get_logger
 from ..schemas.market import Candle, Quote
@@ -162,10 +165,12 @@ def compute_spread(
     ``spread_points`` is the price difference divided by the symbol's point
     size - not the raw price difference.
     """
-    spread_price = round(ask - bid, 10)
     if point <= 0:
         raise MarketDataError("invalid_point", f"Symbol point size must be > 0, got {point}")
-    spread_points = round(spread_price / point, 6)
+    # Decimal arithmetic avoids binary floating-point noise (e.g. 0.52
+    # becoming 0.5199999999999818) while preserving the exact raw values.
+    spread_price = float(Decimal(str(ask)) - Decimal(str(bid)))
+    spread_points = float((Decimal(str(ask)) - Decimal(str(bid))) / Decimal(str(point)))
     return spread_price, spread_points
 
 
