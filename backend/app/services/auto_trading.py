@@ -200,6 +200,14 @@ class AutoTradingController:
         self._tick_size: float | None = None
         self._digits: int | None = None
 
+        # Configured strategy distances (absolute XAUUSD price units).
+        self._break_even_offset = float(
+            getattr(settings, "auto_trade_break_even_offset", 0.40)
+        )
+        self._trailing_distance = float(
+            getattr(settings, "auto_trade_trailing_distance", 0.40)
+        )
+
         self._last_persist_at = 0.0
         self._last_connectivity_log: str | None = None
 
@@ -288,10 +296,16 @@ class AutoTradingController:
             self._status = "RUNNING"
             self._task = asyncio.create_task(self._run(), name="auto-trading")
             logger.info(
-                "Strategy started (session=%s, symbol=%s, timeframe=%s)",
+                "Strategy started (session=%s, symbol=%s, timeframe=%s, "
+                "break_even_offset=%s, trailing_distance=%s, lot_size=%s, "
+                "stop_policy=%s)",
                 self._session_id,
                 self._resolved_symbol(),
                 STRATEGY_TIMEFRAME,
+                self._break_even_offset,
+                self._trailing_distance,
+                self.settings.auto_trade_lot_size,
+                self.settings.auto_trade_stop_policy,
             )
 
         return await self.status()
@@ -397,7 +411,7 @@ class AutoTradingController:
         self._tick_size = _get_attr(info, "trade_tick_size", None) or _get_attr(info, "point", None)
         self._digits = _get_attr(info, "digits", None)
 
-        volume = self.settings.auto_trade_volume
+        volume = self.settings.auto_trade_lot_size
         vmin = _get_attr(info, "volume_min", None)
         vmax = _get_attr(info, "volume_max", None)
         vstep = _get_attr(info, "volume_step", None)
@@ -1076,10 +1090,12 @@ class AutoTradingController:
             else:
                 self._high_water = self._high_water or baseline
             activation_reference = self._buy_entry if self._buy_entry is not None else self._entry_price
-            if not self._break_even_active and self._high_water >= buy_activation_price(activation_reference):
+            if not self._break_even_active and self._high_water >= buy_activation_price(
+    activation_reference, self._break_even_offset
+):
                 self._break_even_active = True
                 self._break_even_level = next_buy_stop_loss(
-                    self._break_even_level, self._high_water
+                    self._break_even_level, self._high_water, self._trailing_distance
                 )
                 logger.info(
                     "Break-even activated: BUY ticket=%s entry=%s high=%s level=%s",
@@ -1090,7 +1106,7 @@ class AutoTradingController:
                 )
             elif self._high_water is not None:
                 self._break_even_level = next_buy_stop_loss(
-                    self._break_even_level, self._high_water
+                    self._break_even_level, self._high_water, self._trailing_distance
                 )
         else:
             baseline = self._entry_price
@@ -1099,10 +1115,12 @@ class AutoTradingController:
             else:
                 self._low_water = self._low_water or baseline
             activation_reference = self._sell_entry if self._sell_entry is not None else self._entry_price
-            if not self._break_even_active and self._low_water <= sell_activation_price(activation_reference):
+            if not self._break_even_active and self._low_water <= sell_activation_price(
+    activation_reference, self._break_even_offset
+):
                 self._break_even_active = True
                 self._break_even_level = next_sell_stop_loss(
-                    self._break_even_level, self._low_water
+                    self._break_even_level, self._low_water, self._trailing_distance
                 )
                 logger.info(
                     "Break-even activated: SELL ticket=%s entry=%s low=%s level=%s",
@@ -1113,8 +1131,14 @@ class AutoTradingController:
                 )
             elif self._low_water is not None:
                 self._break_even_level = next_sell_stop_loss(
-                    self._break_even_level, self._low_water
+                    self._break_even_level, self._low_water, self._trailing_distance
                 )
+
+        if self._break_even_active and self._entry_price is not None and self._break_even_level is not None:
+            if side == SIDE_BUY:
+                self._break_even_level = max(self._break_even_level, self._entry_price)
+            else:
+                self._break_even_level = min(self._break_even_level, self._entry_price)
 
         if broker_sl is not None and float(broker_sl) <= 0:
             # Never leave an active position without its required initial stop.
@@ -1278,7 +1302,7 @@ class AutoTradingController:
         request = {
             "action": _get_attr(mt5, "TRADE_ACTION_PENDING", 5),
             "symbol": self._resolved_symbol(),
-            "volume": self.settings.auto_trade_volume,
+            "volume": self.settings.auto_trade_lot_size,
             "type": order_type,
             "price": price,
             "sl": sl,
@@ -1526,7 +1550,9 @@ class AutoTradingController:
                 self._high_water = high
                 changed = True
             activation_reference = self._buy_entry if self._buy_entry is not None else entry
-            if not self._break_even_active and high >= buy_activation_price(activation_reference):
+            if not self._break_even_active and high >= buy_activation_price(
+    activation_reference, self._break_even_offset
+):
                 self._break_even_active = True
                 changed = True
                 logger.info(
@@ -1538,8 +1564,12 @@ class AutoTradingController:
             if self._break_even_active and self._high_water is not None:
                 previous_level = self._break_even_level
                 self._break_even_level = next_buy_stop_loss(
-                    previous_level, self._high_water
+                    previous_level, self._high_water, self._trailing_distance
                 )
+                if self._entry_price is not None and self._break_even_level is not None:
+                    self._break_even_level = max(
+                        self._break_even_level, self._entry_price
+                    )
                 target = self._current_sl
                 if self._break_even_level is not None and (
                     target is None or self._break_even_level > target
@@ -1553,7 +1583,9 @@ class AutoTradingController:
                 self._low_water = low
                 changed = True
             activation_reference = self._sell_entry if self._sell_entry is not None else entry
-            if not self._break_even_active and low <= sell_activation_price(activation_reference):
+            if not self._break_even_active and low <= sell_activation_price(
+    activation_reference, self._break_even_offset
+):
                 self._break_even_active = True
                 changed = True
                 logger.info(
@@ -1565,8 +1597,12 @@ class AutoTradingController:
             if self._break_even_active and self._low_water is not None:
                 previous_level = self._break_even_level
                 self._break_even_level = next_sell_stop_loss(
-                    previous_level, self._low_water
+                    previous_level, self._low_water, self._trailing_distance
                 )
+                if self._entry_price is not None and self._break_even_level is not None:
+                    self._break_even_level = min(
+                        self._break_even_level, self._entry_price
+                    )
                 target = self._current_sl
                 if self._break_even_level is not None and (
                     target is None or self._break_even_level < target

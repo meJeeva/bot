@@ -6,11 +6,12 @@ access to configuration values throughout the application.
 
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
-from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic import AliasChoices, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
     # --- Core Application Settings ---
@@ -97,7 +99,22 @@ class Settings(BaseSettings):
 
     # --- Automatic trading settings (5-second cycle) ---
     auto_trade_magic_number: int = Field(default=9001, description="Magic number for the automatic trading strategy")
-    auto_trade_volume: float = Field(default=0.01, gt=0, description="Configured order volume for the automatic trading strategy")
+    auto_trade_lot_size: float = Field(
+        default=0.01,
+        gt=0,
+        validation_alias=AliasChoices("AUTO_TRADE_LOT_SIZE", "AUTO_TRADE_VOLUME"),
+        description="Configured fixed lot size for each automatic trading entry order",
+    )
+    auto_trade_break_even_offset: float = Field(
+        default=0.40,
+        gt=0,
+        description="Absolute XAUUSD price distance used to activate break-even trailing",
+    )
+    auto_trade_trailing_distance: float = Field(
+        default=0.40,
+        gt=0,
+        description="Absolute XAUUSD price distance used for static trailing after activation",
+    )
     auto_trade_max_spread_points: float = Field(default=100.0, ge=0, description="Maximum permitted spread in points")
     auto_trade_max_entry_deviation_points: int = Field(default=20, ge=0, description="Maximum allowed entry price deviation in points")
     auto_trade_max_daily_loss: float = Field(default=100.0, ge=0, description="Maximum permitted daily loss")
@@ -108,6 +125,11 @@ class Settings(BaseSettings):
     auto_trade_max_retries: int = Field(default=3, ge=0, le=10, description="Bounded retries for transient failures")
 
     # --- Computed Fields ---
+    @property
+    def auto_trade_volume(self) -> float:
+        """Backward-compatible alias for the configured lot size."""
+        return self.auto_trade_lot_size
+
     @property
     def allowed_origins_list(self) -> List[str]:
         """Parse allowed_origins comma-separated string into a list."""
@@ -291,6 +313,32 @@ class Settings(BaseSettings):
             raise ValueError("ALLOWED_ORIGINS must not be empty or just whitespace")
         # Check for wildcard - will be rejected in model_validator for production
         return v.strip()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _map_legacy_volume(cls, data):
+        if isinstance(data, dict) and "auto_trade_volume" in data and "auto_trade_lot_size" not in data:
+            data = dict(data)
+            data["auto_trade_lot_size"] = data.pop("auto_trade_volume")
+        return data
+
+    @field_validator(
+        "auto_trade_lot_size",
+        "auto_trade_break_even_offset",
+        "auto_trade_trailing_distance",
+        mode="before",
+    )
+    @classmethod
+    def _validate_finite_positive(cls, v):
+        if v is None:
+            return v
+        try:
+            value = float(v)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("must be a finite number") from exc
+        if not math.isfinite(value):
+            raise ValueError("must be a finite number")
+        return value
 
     @model_validator(mode="after")
     def validate_application_settings(self) -> "Settings":

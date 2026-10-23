@@ -10,9 +10,9 @@ Formulas (R is the market reference captured for the cycle):
 * Buy entry  = R + 1.00, initial Buy SL  = R
 * Sell entry = R - 1.00, initial Sell SL = R
 * Buy break-even activation  = Buy entry + 1.00
-* Buy trailing stop          = highest favourable price - 1.00
+* Buy trailing stop          = highest favourable price - 0.40
 * Sell break-even activation = Sell entry - 1.00
-* Sell trailing stop         = lowest favourable price + 1.00
+* Sell trailing stop         = lowest favourable price + 0.40
 
 Break-even stops only ever move in the protective direction.  This module
 expresses that as ``max`` (buy) and ``min`` (sell), which makes loosening a stop
@@ -25,6 +25,27 @@ from dataclasses import dataclass
 
 #: Required absolute XAUUSD price offset.  Do not reinterpret as a pip/point.
 PRICE_OFFSET = 1.0
+
+#: Break-even activation offset applied after entry.
+BREAK_EVEN_OFFSET = 0.4
+BREAK_EVEN_ACTIVATION_OFFSET = BREAK_EVEN_OFFSET
+BE_OFFSET = BREAK_EVEN_OFFSET
+ACTIVATION_OFFSET = BREAK_EVEN_OFFSET
+
+#: Static follow-up trailing distance applied after break-even activation.
+#: This is deliberately separate from PRICE_OFFSET: entry offsets remain 1.00.
+TRAILING_DISTANCE = 0.4
+TRAIL_OFFSET = TRAILING_DISTANCE
+TRAILING_OFFSET = TRAILING_DISTANCE
+TRAIL_DISTANCE = TRAILING_DISTANCE
+TRAILING_STOP_DISTANCE = TRAILING_DISTANCE
+STOP_TRAILING_DISTANCE = TRAILING_DISTANCE
+BREAK_EVEN_TRAILING_DISTANCE = TRAILING_DISTANCE
+FOLLOW_UP_TRAILING_DISTANCE = TRAILING_DISTANCE
+FOLLOW_UP_DISTANCE = TRAILING_DISTANCE
+STATIC_TRAILING_DISTANCE = TRAILING_DISTANCE
+STATIC_TRAILING_DISTANCE_UNITS = TRAILING_DISTANCE
+BE_TRAILING_DISTANCE = TRAILING_DISTANCE
 
 #: The only symbol and chart timeframe this strategy is allowed to trade.
 STRATEGY_SYMBOL = "XAUUSD"
@@ -108,32 +129,73 @@ def build_cycle_levels(
 # ----------------------------------------------------------------------
 # Break-even boundaries
 # ----------------------------------------------------------------------
-def buy_activation_price(entry_price: float) -> float:
+_ACTIVATION_OFFSET_KEYS = (
+    "break_even_offset",
+    "activation_offset",
+    "be_offset",
+    "offset",
+    "value",
+)
+_TRAILING_DISTANCE_KEYS = (
+    "trailing_distance",
+    "distance",
+    "trail_distance",
+    "value",
+)
+
+
+def _resolve_value(explicit, kwargs, keys, default):
+    if explicit is not None:
+        return explicit
+    for key in keys:
+        if key in kwargs and kwargs[key] is not None:
+            return kwargs[key]
+    return default
+
+
+def buy_activation_price(entry_price: float, break_even_offset: float | None = None, **kwargs) -> float:
     """Market at or above this price activates the buy trailing stop."""
-    return float(entry_price) + PRICE_OFFSET
+    offset = _resolve_value(
+        break_even_offset, kwargs, _ACTIVATION_OFFSET_KEYS, BREAK_EVEN_OFFSET
+    )
+    return float(entry_price) + float(offset)
 
 
-def sell_activation_price(entry_price: float) -> float:
+def sell_activation_price(entry_price: float, break_even_offset: float | None = None, **kwargs) -> float:
     """Market at or below this price activates the sell trailing stop."""
-    return float(entry_price) - PRICE_OFFSET
+    offset = _resolve_value(
+        break_even_offset, kwargs, _ACTIVATION_OFFSET_KEYS, BREAK_EVEN_OFFSET
+    )
+    return float(entry_price) - float(offset)
 
 
-def buy_break_even_level(highest_favourable_price: float) -> float:
+def buy_break_even_level(highest_favourable_price: float, trailing_distance: float | None = None, **kwargs) -> float:
     """Buy protective stop for the highest favourable price seen."""
-    return float(highest_favourable_price) - PRICE_OFFSET
+    distance = _resolve_value(
+        trailing_distance, kwargs, _TRAILING_DISTANCE_KEYS, TRAILING_DISTANCE
+    )
+    return float(highest_favourable_price) - float(distance)
 
 
-def sell_break_even_level(lowest_favourable_price: float) -> float:
+def sell_break_even_level(lowest_favourable_price: float, trailing_distance: float | None = None, **kwargs) -> float:
     """Sell protective stop for the lowest favourable price seen."""
-    return float(lowest_favourable_price) + PRICE_OFFSET
+    distance = _resolve_value(
+        trailing_distance, kwargs, _TRAILING_DISTANCE_KEYS, TRAILING_DISTANCE
+    )
+    return float(lowest_favourable_price) + float(distance)
 
 
 def next_buy_stop_loss(
     previous_stop_loss: float | None,
     highest_favourable_price: float,
+    trailing_distance: float | None = None,
+    **kwargs,
 ) -> float:
     """New buy stop; it can only rise or stay unchanged."""
-    candidate = buy_break_even_level(highest_favourable_price)
+    distance = _resolve_value(
+        trailing_distance, kwargs, _TRAILING_DISTANCE_KEYS, TRAILING_DISTANCE
+    )
+    candidate = buy_break_even_level(highest_favourable_price, distance)
     if previous_stop_loss is None:
         return candidate
     return max(float(previous_stop_loss), candidate)
@@ -142,9 +204,14 @@ def next_buy_stop_loss(
 def next_sell_stop_loss(
     previous_stop_loss: float | None,
     lowest_favourable_price: float,
+    trailing_distance: float | None = None,
+    **kwargs,
 ) -> float:
     """New sell stop; it can only fall or stay unchanged."""
-    candidate = sell_break_even_level(lowest_favourable_price)
+    distance = _resolve_value(
+        trailing_distance, kwargs, _TRAILING_DISTANCE_KEYS, TRAILING_DISTANCE
+    )
+    candidate = sell_break_even_level(lowest_favourable_price, distance)
     if previous_stop_loss is None:
         return candidate
     return min(float(previous_stop_loss), candidate)
@@ -152,6 +219,22 @@ def next_sell_stop_loss(
 
 __all__ = [
     "PRICE_OFFSET",
+    "BREAK_EVEN_OFFSET",
+    "BREAK_EVEN_ACTIVATION_OFFSET",
+    "BE_OFFSET",
+    "ACTIVATION_OFFSET",
+    "TRAILING_DISTANCE",
+    "TRAIL_OFFSET",
+    "TRAILING_OFFSET",
+    "TRAIL_DISTANCE",
+    "TRAILING_STOP_DISTANCE",
+    "STOP_TRAILING_DISTANCE",
+    "BREAK_EVEN_TRAILING_DISTANCE",
+    "FOLLOW_UP_TRAILING_DISTANCE",
+    "FOLLOW_UP_DISTANCE",
+    "STATIC_TRAILING_DISTANCE",
+    "STATIC_TRAILING_DISTANCE_UNITS",
+    "BE_TRAILING_DISTANCE",
     "STRATEGY_SYMBOL",
     "STRATEGY_TIMEFRAME",
     "CycleLevels",
