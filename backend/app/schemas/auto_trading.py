@@ -15,7 +15,7 @@ class AutoTradingStatus(BaseModel):
     state: str = "STOPPED"
 
     symbol: str | None = None
-    timeframe: str = "5s"
+    timeframe: str = "M1"
     connection_status: str | None = None
     terminal_connected: bool = False
     trading_enabled: bool = False
@@ -53,6 +53,22 @@ class AutoTradingStatus(BaseModel):
     session_id: str | None = None
     cycle_id: str | None = None
     magic_number: int | None = None
+
+    strategy_phase: str | None = None
+    active_side: str | None = None
+    reference_value: float | None = None
+    buy_entry: float | None = None
+    buy_sl: float | None = None
+    sell_entry: float | None = None
+    sell_sl: float | None = None
+    buy_order_ticket: int | None = None
+    sell_order_ticket: int | None = None
+    highest_favorable_price: float | None = None
+    lowest_favorable_price: float | None = None
+    break_even_active: bool = False
+    break_even_level: float | None = None
+    last_processed_deal: Any = None
+    previous_cycle_complete: bool = False
 
     def sync(self) -> "AutoTradingStatus":
         self.auto_trading_status = self.status

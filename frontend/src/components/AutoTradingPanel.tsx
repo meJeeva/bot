@@ -59,7 +59,7 @@ export function AutoTradingPanel() {
   return (
     <section className="card" aria-labelledby="auto-trading-heading">
       <header className="card-header">
-        <h2 id="auto-trading-heading">Automatic Trading (5s)</h2>
+        <h2 id="auto-trading-heading">Automatic Trading (XAUUSD M1)</h2>
         <span data-testid="auto-trading-status">{currentStatus}</span>
       </header>
 
@@ -86,7 +86,7 @@ export function AutoTradingPanel() {
 
       <dl className="kv">
         <div><dt>Symbol</dt><dd data-testid="auto-symbol">{status?.symbol ?? '—'}</dd></div>
-        <div><dt>Timeframe</dt><dd data-testid="auto-timeframe">{status?.timeframe ?? '5s'}</dd></div>
+        <div><dt>Timeframe</dt><dd data-testid="auto-timeframe">{status?.timeframe ?? 'M1'}</dd></div>
         <div><dt>Balance</dt><dd data-testid="auto-balance">{status?.balance ?? '—'}</dd></div>
         <div><dt>Equity</dt><dd data-testid="auto-equity">{status?.equity ?? '—'}</dd></div>
         <div><dt>Position status</dt><dd data-testid="auto-position-status">{status?.position_status ?? 'none'}</dd></div>

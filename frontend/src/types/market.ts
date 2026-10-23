@@ -213,4 +213,20 @@ export interface AutoTradingStatus {
   session_id: string | null;
   cycle_id: string | null;
   magic_number: number | null;
+
+  strategy_phase?: string | null;
+  active_side?: string | null;
+  reference_value?: number | null;
+  buy_entry?: number | null;
+  buy_sl?: number | null;
+  sell_entry?: number | null;
+  sell_sl?: number | null;
+  buy_order_ticket?: number | null;
+  sell_order_ticket?: number | null;
+  highest_favorable_price?: number | null;
+  lowest_favorable_price?: number | null;
+  break_even_active?: boolean;
+  break_even_level?: number | null;
+  last_processed_deal?: unknown;
+  previous_cycle_complete?: boolean;
 }

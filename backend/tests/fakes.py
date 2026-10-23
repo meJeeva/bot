@@ -64,6 +64,20 @@ ORDER_FILLING_IOC = 1
 TRADE_RETCODE_DONE = 10009
 TRADE_RETCODE_DONE_PARTIAL = 10010
 
+# Pending-order / stop-management constants used by the M1 strategy.
+TRADE_ACTION_PENDING = 5
+TRADE_ACTION_REMOVE = 8
+TRADE_ACTION_SLTP = 6
+ORDER_TYPE_BUY_LIMIT = 2
+ORDER_TYPE_SELL_LIMIT = 3
+ORDER_TYPE_BUY_STOP = 4
+ORDER_TYPE_SELL_STOP = 5
+ORDER_TYPE_BUY_STOP_LIMIT = 6
+ORDER_TYPE_SELL_STOP_LIMIT = 7
+DEAL_ENTRY_IN = 0
+DEAL_ENTRY_OUT = 1
+DEAL_REASON_SL = 4
+
 # The MetaQuotes-Demo server observed during development runs at UTC+3.
 DEFAULT_SERVER_OFFSET_SECONDS = 10800
 
@@ -260,6 +274,47 @@ class FakePosition:
 
 
 @dataclass
+class FakeOrder:
+    ticket: int
+    time: int = 0
+    type: int = 0
+    magic: int = 0
+    volume: float = 0.01
+    price: float = 0.0
+    sl: float = 0.0
+    tp: float = 0.0
+    symbol: str = "XAUUSD"
+    comment: str = ""
+    price_open: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.price_open:
+            self.price_open = self.price
+
+
+@dataclass
+class FakeDeal:
+    ticket: int = 0
+    order: int = 0
+    position_id: int = 0
+    position: int = 0
+    time: int = 0
+    type: int = 0
+    entry: int = DEAL_ENTRY_OUT
+    magic: int = 0
+    volume: float = 0.01
+    price: float = 0.0
+    profit: float = 0.0
+    symbol: str = "XAUUSD"
+    comment: str = "sl"
+    reason: int = DEAL_REASON_SL
+
+    def __post_init__(self) -> None:
+        if not self.position:
+            self.position = self.position_id
+
+
+@dataclass
 class FakeOrderResult:
     retcode: int = 10009
     deal: int = 1
@@ -293,6 +348,47 @@ class FakePosition:
     symbol: str = "XAUUSD"
     comment: str = ""
     external_id: str = ""
+
+
+@dataclass
+class FakeOrder:
+    ticket: int
+    time: int = 0
+    type: int = 0
+    magic: int = 0
+    volume: float = 0.01
+    price: float = 0.0
+    sl: float = 0.0
+    tp: float = 0.0
+    symbol: str = "XAUUSD"
+    comment: str = ""
+    price_open: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.price_open:
+            self.price_open = self.price
+
+
+@dataclass
+class FakeDeal:
+    ticket: int = 0
+    order: int = 0
+    position_id: int = 0
+    position: int = 0
+    time: int = 0
+    type: int = 0
+    entry: int = DEAL_ENTRY_OUT
+    magic: int = 0
+    volume: float = 0.01
+    price: float = 0.0
+    profit: float = 0.0
+    symbol: str = "XAUUSD"
+    comment: str = "sl"
+    reason: int = DEAL_REASON_SL
+
+    def __post_init__(self) -> None:
+        if not self.position:
+            self.position = self.position_id
 
 
 @dataclass
@@ -359,14 +455,20 @@ class FakeMT5:
         self.shutdown_calls = 0
         self.selected: set[str] = set()
         self.positions: list[FakePosition] = []
+        self.orders: list[FakeOrder] = []
+        self.deals: list[FakeDeal] = []
         self.order_send_retcode = 10009
         self.order_send_results = None
         self.next_position_ticket = 1001
+        self.next_order_ticket = 2001
         self.trade_allowed = True
         self.positions: list[FakePosition] = []
+        self.orders: list[FakeOrder] = []
+        self.deals: list[FakeDeal] = []
         self.order_send_retcode = 10009
         self.order_send_results = None
         self.next_position_ticket = 1001
+        self.next_order_ticket = 2001
         self.trade_allowed = True
 
     # -- instrumentation -------------------------------------------------
@@ -460,9 +562,70 @@ class FakeMT5:
         position = req.get("position")
         magic = req.get("magic", 0)
         comment = req.get("comment", "")
+        action = req.get("action")
+        sl = req.get("sl")
+        tp = req.get("tp", 0.0)
 
         if result.retcode == 10009:
-            if position is None:
+            # Remove a pending order.
+            if action == TRADE_ACTION_REMOVE or (position is None and "order" in req and action is None and False):
+                pass
+            if action == TRADE_ACTION_REMOVE:
+                order_ticket = req.get("order")
+                self.orders = [o for o in self.orders if o.ticket != order_ticket]
+                result.order = order_ticket
+                result.deal = order_ticket
+                result.position = None
+                result.price = 0.0
+                result.volume = 0.0
+            elif position is not None and action in (TRADE_ACTION_DEAL, TRADE_ACTION_SLTP, None):
+                if action == TRADE_ACTION_SLTP:
+                    for pos in self.positions:
+                        if pos.ticket == position:
+                            pos.sl = sl if sl is not None else pos.sl
+                            pos.tp = tp if tp is not None else pos.tp
+                    result.order = position
+                    result.deal = position
+                    result.position = position
+                    result.price = price if price is not None else 0.0
+                    result.volume = volume
+                else:
+                    self.positions = [p for p in self.positions if p.ticket != position]
+                    result.order = position
+                    result.deal = position
+                    result.position = position
+                    result.price = price if price is not None else 0.0
+                    result.volume = volume
+            elif action == TRADE_ACTION_PENDING or order_type in (
+                ORDER_TYPE_BUY_STOP,
+                ORDER_TYPE_SELL_STOP,
+                ORDER_TYPE_BUY_LIMIT,
+                ORDER_TYPE_SELL_LIMIT,
+                ORDER_TYPE_BUY_STOP_LIMIT,
+                ORDER_TYPE_SELL_STOP_LIMIT,
+            ):
+                ticket = self.next_order_ticket
+                self.next_order_ticket += 1
+                order = FakeOrder(
+                    ticket=ticket,
+                    time=int(__import__("time").time() + 10800),
+                    type=order_type,
+                    magic=magic,
+                    volume=volume,
+                    price=price if price is not None else 0.0,
+                    sl=sl if sl is not None else 0.0,
+                    tp=tp if tp is not None else 0.0,
+                    symbol=symbol or "XAUUSD",
+                    comment=comment,
+                )
+                self.orders.append(order)
+                result.order = ticket
+                result.deal = 0
+                result.position = None
+                result.price = price if price is not None else 0.0
+                result.volume = volume
+            else:
+                # Legacy market entry (no action / deal action without position).
                 ticket = self.next_position_ticket
                 self.next_position_ticket += 1
                 pos = FakePosition(
@@ -473,6 +636,8 @@ class FakeMT5:
                     volume=volume,
                     price_open=price if price is not None else 0.0,
                     price_current=price if price is not None else 0.0,
+                    sl=sl if sl is not None else 0.0,
+                    tp=tp if tp is not None else 0.0,
                     profit=0.0,
                     symbol=symbol or "XAUUSD",
                     comment=comment,
@@ -481,13 +646,6 @@ class FakeMT5:
                 result.order = ticket
                 result.deal = ticket
                 result.position = ticket
-                result.price = price if price is not None else 0.0
-                result.volume = volume
-            else:
-                self.positions = [p for p in self.positions if p.ticket != position]
-                result.order = position
-                result.deal = position
-                result.position = position
                 result.price = price if price is not None else 0.0
                 result.volume = volume
         if result.comment is None:
@@ -505,6 +663,29 @@ class FakeMT5:
             result = [p for p in result if p.symbol == symbol]
         if ticket is not None:
             result = [p for p in result if p.ticket == ticket]
+        return result
+
+    def orders_get(self, symbol=None, ticket=None, **kwargs):
+        self._record("orders_get", symbol, ticket)
+        result = list(self.orders)
+        if symbol is not None:
+            result = [o for o in result if getattr(o, "symbol", None) == symbol]
+        if ticket is not None:
+            result = [o for o in result if o.ticket == ticket]
+        return result
+
+    def history_deals_get(self, *args, **kwargs):
+        self._record("history_deals_get", *args, **kwargs)
+        position = kwargs.get("position")
+        if position is None and len(args) >= 3:
+            position = args[2]
+        result = list(self.deals)
+        if position is not None:
+            result = [
+                d for d in result
+                if getattr(d, "position_id", None) == position
+                or getattr(d, "position", None) == position
+            ]
         return result
 
     def order_send(self, request):
@@ -524,9 +705,70 @@ class FakeMT5:
         position = req.get("position")
         magic = req.get("magic", 0)
         comment = req.get("comment", "")
+        action = req.get("action")
+        sl = req.get("sl")
+        tp = req.get("tp", 0.0)
 
         if result.retcode == 10009:
-            if position is None:
+            # Remove a pending order.
+            if action == TRADE_ACTION_REMOVE or (position is None and "order" in req and action is None and False):
+                pass
+            if action == TRADE_ACTION_REMOVE:
+                order_ticket = req.get("order")
+                self.orders = [o for o in self.orders if o.ticket != order_ticket]
+                result.order = order_ticket
+                result.deal = order_ticket
+                result.position = None
+                result.price = 0.0
+                result.volume = 0.0
+            elif position is not None and action in (TRADE_ACTION_DEAL, TRADE_ACTION_SLTP, None):
+                if action == TRADE_ACTION_SLTP:
+                    for pos in self.positions:
+                        if pos.ticket == position:
+                            pos.sl = sl if sl is not None else pos.sl
+                            pos.tp = tp if tp is not None else pos.tp
+                    result.order = position
+                    result.deal = position
+                    result.position = position
+                    result.price = price if price is not None else 0.0
+                    result.volume = volume
+                else:
+                    self.positions = [p for p in self.positions if p.ticket != position]
+                    result.order = position
+                    result.deal = position
+                    result.position = position
+                    result.price = price if price is not None else 0.0
+                    result.volume = volume
+            elif action == TRADE_ACTION_PENDING or order_type in (
+                ORDER_TYPE_BUY_STOP,
+                ORDER_TYPE_SELL_STOP,
+                ORDER_TYPE_BUY_LIMIT,
+                ORDER_TYPE_SELL_LIMIT,
+                ORDER_TYPE_BUY_STOP_LIMIT,
+                ORDER_TYPE_SELL_STOP_LIMIT,
+            ):
+                ticket = self.next_order_ticket
+                self.next_order_ticket += 1
+                order = FakeOrder(
+                    ticket=ticket,
+                    time=int(__import__("time").time() + 10800),
+                    type=order_type,
+                    magic=magic,
+                    volume=volume,
+                    price=price if price is not None else 0.0,
+                    sl=sl if sl is not None else 0.0,
+                    tp=tp if tp is not None else 0.0,
+                    symbol=symbol or "XAUUSD",
+                    comment=comment,
+                )
+                self.orders.append(order)
+                result.order = ticket
+                result.deal = 0
+                result.position = None
+                result.price = price if price is not None else 0.0
+                result.volume = volume
+            else:
+                # Legacy market entry (no action / deal action without position).
                 ticket = self.next_position_ticket
                 self.next_position_ticket += 1
                 pos = FakePosition(
@@ -537,6 +779,8 @@ class FakeMT5:
                     volume=volume,
                     price_open=price if price is not None else 0.0,
                     price_current=price if price is not None else 0.0,
+                    sl=sl if sl is not None else 0.0,
+                    tp=tp if tp is not None else 0.0,
                     profit=0.0,
                     symbol=symbol or "XAUUSD",
                     comment=comment,
@@ -545,13 +789,6 @@ class FakeMT5:
                 result.order = ticket
                 result.deal = ticket
                 result.position = ticket
-                result.price = price if price is not None else 0.0
-                result.volume = volume
-            else:
-                self.positions = [p for p in self.positions if p.ticket != position]
-                result.order = position
-                result.deal = position
-                result.position = position
                 result.price = price if price is not None else 0.0
                 result.volume = volume
         if result.comment is None:
@@ -569,6 +806,29 @@ class FakeMT5:
             result = [p for p in result if p.symbol == symbol]
         if ticket is not None:
             result = [p for p in result if p.ticket == ticket]
+        return result
+
+    def orders_get(self, symbol=None, ticket=None, **kwargs):
+        self._record("orders_get", symbol, ticket)
+        result = list(self.orders)
+        if symbol is not None:
+            result = [o for o in result if getattr(o, "symbol", None) == symbol]
+        if ticket is not None:
+            result = [o for o in result if o.ticket == ticket]
+        return result
+
+    def history_deals_get(self, *args, **kwargs):
+        self._record("history_deals_get", *args, **kwargs)
+        position = kwargs.get("position")
+        if position is None and len(args) >= 3:
+            position = args[2]
+        result = list(self.deals)
+        if position is not None:
+            result = [
+                d for d in result
+                if getattr(d, "position_id", None) == position
+                or getattr(d, "position", None) == position
+            ]
         return result
 
     # -- rates -----------------------------------------------------------
