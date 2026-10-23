@@ -502,6 +502,15 @@ class AutoTradingController:
         elif self._phase == PHASE_WAITING_ENTRY:
             await self._handle_waiting_for_entry(quote)
         elif self._phase in (PHASE_INITIALIZING, PHASE_SWITCHING):
+            if self._session_completed_cycles >= self.settings.auto_trade_max_cycles:
+                self._last_error = "Maximum cycles per session reached"
+                self._stop_requested = True
+                return
+            loss = await self._session_loss()
+            if loss is not None and loss >= self.settings.auto_trade_max_daily_loss:
+                self._last_error = "Maximum daily loss reached"
+                self._stop_requested = True
+                return
             await self._initialize_cycle(quote)
 
         # Safety restrictions keep working exactly as before.
@@ -634,16 +643,24 @@ class AutoTradingController:
         getter = getattr(mt5, "history_deals_get", None)
         if getter is None:
             return None
+        # MT5 deal times are reported in broker-server time, which may be
+        # several hours ahead of this process's UTC clock.  Keep a generous
+        # window on both sides so a freshly executed stop-loss deal can never
+        # fall outside the query range because of a time-zone mismatch.
         now = _utcnow()
         start = now - timedelta(days=_HISTORY_LOOKBACK_DAYS)
-        end = now + timedelta(minutes=1)
+        end = now + timedelta(days=1)
+        # MetaTrader5 expects naive datetimes; aware values are normalised to
+        # naive UTC here so the broker's own time-zone handling is not confused.
+        start_naive = start.replace(tzinfo=None)
+        end_naive = end.replace(tzinfo=None)
         try:
             deals = await self.connection.acall(
-                getter, start, end, position=position_ticket
+                getter, start_naive, end_naive, position=position_ticket
             )
         except TypeError:
             try:
-                deals = await self.connection.acall(getter, start, end)
+                deals = await self.connection.acall(getter, start_naive, end_naive)
             except Exception:  # noqa: BLE001
                 return None
         except Exception:  # noqa: BLE001
@@ -1705,15 +1722,18 @@ class AutoTradingController:
             # MT5 may still be publishing the closing deal.
             return
 
-        if deals is None:
-            # Deal history is unavailable. A price crossing the recorded stop is
-            # not proof that MT5 closed the position because of that stop, so no
-            # switch is inferred from price action alone.
+        if not deals:
+            # Deal history is temporarily unavailable or not yet published.
+            # Keep reconciling and retrying instead of permanently failing or
+            # guessing from price action.
+            if self._closed_since is None:
+                self._closed_since = self._now()
             logger.warning(
-                "Position %s is no longer open but deal history is unavailable; "
-                "no switch is performed without a confirmed stop-loss deal",
+                "Position %s is no longer open but no stop-loss deal is available yet; "
+                "waiting for a confirmed stop-loss deal",
                 ticket,
             )
+            return
 
         self._fail(
             f"Position {ticket} closed without a confirmed stop-loss; "
