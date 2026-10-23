@@ -105,6 +105,12 @@ class Settings(BaseSettings):
     auto_trade_entry_interval_seconds: int = Field(default=5, ge=1, le=300, description="Interval between BUY entries in seconds")
     auto_trade_holding_duration_seconds: int = Field(default=3, ge=1, le=60, description="Holding duration after confirmed fill in seconds")
     auto_trade_stop_policy: str = Field(default="close", description="Stop policy: close or leave")
+    auto_trade_trailing_mode: str = Field(default="fixed", description="Trailing mode: fixed, atr, or structure")
+    auto_trade_atr_period: int = Field(default=14, ge=2, le=200, description="ATR period for adaptive trailing")
+    auto_trade_atr_multiplier: float = Field(default=1.0, gt=0, description="ATR multiplier for adaptive trailing distance")
+    auto_trade_structure_swing_left_bars: int = Field(default=2, ge=1, le=10, description="Completed M1 bars on each side for swing confirmation")
+    auto_trade_structure_swing_right_bars: int = Field(default=2, ge=1, le=10, description="Completed M1 bars on each side for swing confirmation")
+    auto_trade_structure_buffer: float = Field(default=0.0, ge=0, description="Structure trailing buffer in XAUUSD price units")
     auto_trade_max_retries: int = Field(default=3, ge=0, le=10, description="Bounded retries for transient failures")
 
     # --- Computed Fields ---
@@ -244,6 +250,22 @@ class Settings(BaseSettings):
                 except ValueError:
                     raise ValueError("MT5_LOGIN must be a valid integer")
         return v
+
+    @field_validator("auto_trade_trailing_mode", mode="before")
+    @classmethod
+    def validate_auto_trade_trailing_mode(cls, v):
+        if v is None:
+            return "fixed"
+        if not isinstance(v, str):
+            return v
+        mode = v.strip().lower()
+        if not mode:
+            return "fixed"
+        if mode not in ("fixed", "atr", "structure"):
+            raise ValueError("AUTO_TRADE_TRAILING_MODE must be 'fixed', 'atr', or 'structure'")
+        # structure-specific settings
+        return mode
+        return mode
 
     @field_validator("auto_trade_stop_policy", mode="before")
     @classmethod

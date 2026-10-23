@@ -229,4 +229,11 @@ export interface AutoTradingStatus {
   break_even_level?: number | null;
   last_processed_deal?: unknown;
   previous_cycle_complete?: boolean;
+
+  trailing_mode?: string | null;
+  atr_period?: number | null;
+  atr_multiplier?: number | null;
+  atr_value?: number | null;
+  atr_distance?: number | null;
+  atr_error?: string | null;
 }

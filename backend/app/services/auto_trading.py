@@ -42,13 +42,19 @@ from ..schemas.auto_trading import (
     AutoTradingStatus,
 )
 from ..services.market_monitor import MarketMonitor
+from ..strategy.atr import (
+    atr_trailing_distance,
+    wilder_atr,
+)
+from ..strategy.structure import (
+    detect_swings,
+    latest_swing,
+)
 from ..strategy.range_break_even import (
     STRATEGY_SYMBOL,
     STRATEGY_TIMEFRAME,
     build_cycle_levels,
     buy_activation_price,
-    next_buy_stop_loss,
-    next_sell_stop_loss,
     normalize_price,
     price_tolerance,
     sell_activation_price,
@@ -179,6 +185,26 @@ class AutoTradingController:
         self._break_even_level: float | None = None
         self._last_sl_request_level: float | None = None
         self._sl_retry_at = 0.0
+
+        # ATR adaptive trailing state
+        self._atr_period = int(getattr(settings, "auto_trade_atr_period", 14))
+        self._atr_multiplier = float(getattr(settings, "auto_trade_atr_multiplier", 1.0))
+        self._atr_value: float | None = None
+        self._atr_distance: float | None = None
+        self._atr_last_refresh = 0.0
+        self._atr_last_candle_time: Any = None
+        self._atr_error: str | None = None
+
+        # Structure trailing state
+        self._structure_swing_left = int(getattr(settings, "auto_trade_structure_swing_left_bars", 2))
+        self._structure_swing_right = int(getattr(settings, "auto_trade_structure_swing_right_bars", 2))
+        self._structure_buffer = float(getattr(settings, "auto_trade_structure_buffer", 0.0))
+        self._structure_swing_low_price: float | None = None
+        self._structure_swing_low_time: Any = None
+        self._structure_swing_high_price: float | None = None
+        self._structure_swing_high_time: Any = None
+        self._structure_last_refresh = 0.0
+        self._structure_error: str | None = None
 
         # Execution identity / deduplication
         self._last_processed_deal: Any = None
@@ -497,6 +523,9 @@ class AutoTradingController:
         if self._phase == PHASE_ERROR or self._stop_requested:
             return
 
+        await self._refresh_atr(quote)
+        await self._refresh_structure(quote)
+
         if self._active_side is not None:
             await self._manage_active_position(quote)
         elif self._phase == PHASE_WAITING_ENTRY:
@@ -730,6 +759,15 @@ class AutoTradingController:
             "low_water": self._low_water,
             "break_even_active": self._break_even_active,
             "break_even_level": self._break_even_level,
+            "trailing_mode": self._trailing_mode(),
+            "atr_period": self._atr_period,
+            "atr_multiplier": self._atr_multiplier,
+            "atr_value": self._atr_value,
+            "atr_distance": self._atr_distance,
+            "structure_swing_low_price": self._structure_swing_low_price,
+            "structure_swing_low_time": self._structure_swing_low_time,
+            "structure_swing_high_price": self._structure_swing_high_price,
+            "structure_swing_high_time": self._structure_swing_high_time,
             "last_processed_deal": self._last_processed_deal,
             "previous_cycle_complete": self._previous_cycle_complete,
             "completed_cycles": self._completed_cycles,
@@ -821,6 +859,14 @@ class AutoTradingController:
         self._low_water = number("low_water")
         self._break_even_active = bool(snapshot.get("break_even_active", False))
         self._break_even_level = number("break_even_level")
+        self._atr_period = integer("atr_period") or self._atr_period
+        self._atr_multiplier = number("atr_multiplier") or self._atr_multiplier
+        self._atr_value = number("atr_value")
+        self._atr_distance = number("atr_distance")
+        self._structure_swing_low_price = number("structure_swing_low_price")
+        self._structure_swing_low_time = snapshot.get("structure_swing_low_time")
+        self._structure_swing_high_price = number("structure_swing_high_price")
+        self._structure_swing_high_time = snapshot.get("structure_swing_high_time")
         self._last_processed_deal = snapshot.get("last_processed_deal")
         self._previous_cycle_complete = bool(
             snapshot.get("previous_cycle_complete", True)
@@ -1078,9 +1124,7 @@ class AutoTradingController:
             activation_reference = self._buy_entry if self._buy_entry is not None else self._entry_price
             if not self._break_even_active and self._high_water >= buy_activation_price(activation_reference):
                 self._break_even_active = True
-                self._break_even_level = next_buy_stop_loss(
-                    self._break_even_level, self._high_water
-                )
+                self._break_even_level = self._buy_trailing_level(self._high_water)
                 logger.info(
                     "Break-even activated: BUY ticket=%s entry=%s high=%s level=%s",
                     self._position_ticket,
@@ -1089,9 +1133,7 @@ class AutoTradingController:
                     self._break_even_level,
                 )
             elif self._high_water is not None:
-                self._break_even_level = next_buy_stop_loss(
-                    self._break_even_level, self._high_water
-                )
+                self._break_even_level = self._buy_trailing_level(self._high_water)
         else:
             baseline = self._entry_price
             if favourable is not None:
@@ -1101,9 +1143,7 @@ class AutoTradingController:
             activation_reference = self._sell_entry if self._sell_entry is not None else self._entry_price
             if not self._break_even_active and self._low_water <= sell_activation_price(activation_reference):
                 self._break_even_active = True
-                self._break_even_level = next_sell_stop_loss(
-                    self._break_even_level, self._low_water
-                )
+                self._break_even_level = self._sell_trailing_level(self._low_water)
                 logger.info(
                     "Break-even activated: SELL ticket=%s entry=%s low=%s level=%s",
                     self._position_ticket,
@@ -1112,9 +1152,7 @@ class AutoTradingController:
                     self._break_even_level,
                 )
             elif self._low_water is not None:
-                self._break_even_level = next_sell_stop_loss(
-                    self._break_even_level, self._low_water
-                )
+                self._break_even_level = self._sell_trailing_level(self._low_water)
 
         if broker_sl is not None and float(broker_sl) <= 0:
             # Never leave an active position without its required initial stop.
@@ -1506,6 +1544,159 @@ class AutoTradingController:
     # ------------------------------------------------------------------
     # Active position management (break-even trailing)
     # ------------------------------------------------------------------
+    async def _refresh_structure(self, quote: Any) -> None:
+        if self._trailing_mode() != "structure":
+            return
+        now = self._now()
+        if self._structure_last_refresh and (now - self._structure_last_refresh) < 5.0:
+            return
+        self._structure_last_refresh = now
+        symbol = self._resolved_symbol()
+        mt5 = self.connection.mt5
+        try:
+            from ..mt5.market_data import read_candles
+
+            limit = self._structure_swing_left + self._structure_swing_right + 20
+            candles = await asyncio.to_thread(
+                read_candles, mt5, symbol, "M1", limit, offset_seconds=0, now_utc=_utcnow()
+            )
+        except Exception as exc:  # noqa: BLE001
+            if self._structure_error != str(exc):
+                logger.warning("Structure swing detection failed: %s", exc)
+            self._structure_error = str(exc)
+            return
+        completed = list(candles[:-1]) if len(candles) > 1 else list(candles)
+        if len(completed) < self._structure_swing_left + self._structure_swing_right + 1:
+            if self._structure_error != "insufficient_candles":
+                logger.warning("Insufficient completed M1 candles for structure swings")
+            self._structure_error = "insufficient_candles"
+            return
+        highs = [float(getattr(c, "high", 0.0)) for c in completed]
+        lows = [float(getattr(c, "low", 0.0)) for c in completed]
+        times = []
+        for c in completed:
+            t = getattr(c, "time", None)
+            if t is None:
+                t = getattr(c, "open_time_utc", None)
+            try:
+                times.append(int(t.timestamp()) if hasattr(t, "timestamp") else int(t))
+            except Exception:  # noqa: BLE001
+                times.append(0)
+        try:
+            from ..strategy.structure import detect_swings
+
+            swings = detect_swings(highs, lows, times, self._structure_swing_left, self._structure_swing_right)
+        except Exception as exc:  # noqa: BLE001
+            if self._structure_error != str(exc):
+                logger.warning("Structure swing detection failed: %s", exc)
+            self._structure_error = str(exc)
+            return
+        self._structure_error = None
+        new_low = None
+        new_high = None
+        for swing in swings:
+            if swing.kind == "low":
+                if self._structure_swing_low_time is None or swing.time > int(self._structure_swing_low_time):
+                    if self._structure_swing_low_time is None or swing.time != int(self._structure_swing_low_time):
+                        new_low = swing
+            elif swing.kind == "high":
+                if self._structure_swing_high_time is None or swing.time > int(self._structure_swing_high_time):
+                    if self._structure_swing_high_time is None or swing.time != int(self._structure_swing_high_time):
+                        new_high = swing
+        if new_low is not None:
+            self._structure_swing_low_price = new_low.price
+            self._structure_swing_low_time = new_low.time
+            logger.info(
+                "Structure swing low confirmed: symbol=%s time=%s price=%s",
+                symbol,
+                new_low.time,
+                new_low.price,
+            )
+        if new_high is not None:
+            self._structure_swing_high_price = new_high.price
+            self._structure_swing_high_time = new_high.time
+            logger.info(
+                "Structure swing high confirmed: symbol=%s time=%s price=%s",
+                symbol,
+                new_high.time,
+                new_high.price,
+            )
+
+    async def _refresh_atr(self, quote: Any) -> None:
+        if self._trailing_mode() != "atr":
+            return
+        now = self._now()
+        if self._atr_last_refresh and (now - self._atr_last_refresh) < 5.0:
+            return
+        self._atr_last_refresh = now
+        symbol = self._resolved_symbol()
+        mt5 = self.connection.mt5
+        try:
+            from ..mt5.market_data import read_candles
+            from ..mt5.timeframes import get_timeframe
+
+            spec = get_timeframe("M1")
+            limit = self._atr_period + 5
+            candles = await asyncio.to_thread(
+                read_candles, mt5, symbol, "M1", limit, offset_seconds=0, now_utc=_utcnow()
+            )
+        except Exception as exc:  # noqa: BLE001
+            if self._atr_error != str(exc):
+                logger.warning("ATR calculation failed: %s", exc)
+            self._atr_error = str(exc)
+            self._atr_value = None
+            self._atr_distance = None
+            return
+        # Exclude the forming (last) candle: only completed bars may be used.
+        completed = list(candles[:-1]) if len(candles) > 1 else list(candles)
+        if len(completed) < self._atr_period:
+            if self._atr_error != "insufficient_candles":
+                logger.warning("Insufficient completed M1 candles for ATR (need %s, got %s)", self._atr_period, len(completed))
+            self._atr_error = "insufficient_candles"
+            self._atr_value = None
+            self._atr_distance = None
+            return
+        highs = [float(getattr(c, "high", 0.0)) for c in completed]
+        lows = [float(getattr(c, "low", 0.0)) for c in completed]
+        closes = [float(getattr(c, "close", 0.0)) for c in completed]
+        try:
+            from ..strategy.atr import wilder_atr, atr_trailing_distance
+
+            atr = wilder_atr(highs, lows, closes, self._atr_period)
+        except Exception as exc:  # noqa: BLE001
+            if self._atr_error != str(exc):
+                logger.warning("ATR calculation failed: %s", exc)
+            self._atr_error = str(exc)
+            self._atr_value = None
+            self._atr_distance = None
+            return
+        if atr is None:
+            if self._atr_error != "invalid_atr":
+                logger.warning("ATR calculation returned no valid value")
+            self._atr_error = "invalid_atr"
+            self._atr_value = None
+            self._atr_distance = None
+            return
+        distance = atr_trailing_distance(atr, self._atr_multiplier)
+        if distance is None:
+            self._atr_error = "invalid_distance"
+            self._atr_value = None
+            self._atr_distance = None
+            return
+        previous = self._atr_value
+        self._atr_value = atr
+        self._atr_distance = distance
+        self._atr_error = None
+        if previous is None or abs(previous - atr) > 1e-9:
+            logger.info(
+                "ATR refreshed: symbol=%s period=%s atr=%s multiplier=%s distance=%s",
+                symbol,
+                self._atr_period,
+                atr,
+                self._atr_multiplier,
+                distance,
+            )
+
     async def _manage_active_position(self, quote: Any) -> None:
         position = self._position
         if position is None or self._active_side is None:
@@ -1530,16 +1721,18 @@ class AutoTradingController:
                 self._break_even_active = True
                 changed = True
                 logger.info(
-                    "Break-even activated: BUY ticket=%s entry=%s activation=%s",
+                    "Break-even activated: BUY ticket=%s entry=%s activation=%s "
+                    "favorable=%s atr=%s distance=%s",
                     self._position_ticket,
                     entry,
-                    self._norm(buy_activation_price(entry)),
+                    self._norm(buy_activation_price(activation_reference)),
+                    favourable,
+                    self._atr_value,
+                    self._trailing_distance(),
                 )
             if self._break_even_active and self._high_water is not None:
                 previous_level = self._break_even_level
-                self._break_even_level = next_buy_stop_loss(
-                    previous_level, self._high_water
-                )
+                self._break_even_level = self._buy_trailing_level(self._high_water)
                 target = self._current_sl
                 if self._break_even_level is not None and (
                     target is None or self._break_even_level > target
@@ -1557,16 +1750,18 @@ class AutoTradingController:
                 self._break_even_active = True
                 changed = True
                 logger.info(
-                    "Break-even activated: SELL ticket=%s entry=%s activation=%s",
+                    "Break-even activated: SELL ticket=%s entry=%s activation=%s "
+                    "favorable=%s atr=%s distance=%s",
                     self._position_ticket,
                     entry,
-                    self._norm(sell_activation_price(entry)),
+                    self._norm(sell_activation_price(activation_reference)),
+                    favourable,
+                    self._atr_value,
+                    self._trailing_distance(),
                 )
             if self._break_even_active and self._low_water is not None:
                 previous_level = self._break_even_level
-                self._break_even_level = next_sell_stop_loss(
-                    previous_level, self._low_water
-                )
+                self._break_even_level = self._sell_trailing_level(self._low_water)
                 target = self._current_sl
                 if self._break_even_level is not None and (
                     target is None or self._break_even_level < target
@@ -1577,6 +1772,74 @@ class AutoTradingController:
 
         if changed:
             await self._persist_state()
+
+    def _trailing_mode(self) -> str:
+        return str(getattr(self.settings, "auto_trade_trailing_mode", "fixed") or "fixed").strip().lower()
+
+    def _trailing_distance(self) -> float | None:
+        if self._trailing_mode() == "fixed":
+            return 1.0
+        return self._atr_distance
+
+    def _buy_trailing_level(self, high_water: float) -> float | None:
+        mode = self._trailing_mode()
+        if mode == "structure":
+            if self._structure_swing_low_price is None:
+                return self._break_even_level
+            buffer_value = float(getattr(self.settings, "auto_trade_structure_buffer", 0.0))
+            candidate = float(self._structure_swing_low_price) - buffer_value
+            floor_value = self._entry_price if self._entry_price is not None else None
+            if floor_value is not None:
+                candidate = max(candidate, float(floor_value))
+            if self._break_even_level is None:
+                return candidate
+            result = max(float(self._break_even_level), candidate)
+            if floor_value is not None:
+                result = max(result, float(floor_value))
+            return result
+        distance = self._trailing_distance()
+        if distance is None:
+            return self._break_even_level
+        candidate = float(high_water) - float(distance)
+        floor_value = self._entry_price if self._entry_price is not None else None
+        if floor_value is not None:
+            candidate = max(candidate, float(floor_value))
+        if self._break_even_level is None:
+            return candidate
+        result = max(float(self._break_even_level), candidate)
+        if floor_value is not None:
+            result = max(result, float(floor_value))
+        return result
+
+    def _sell_trailing_level(self, low_water: float) -> float | None:
+        mode = self._trailing_mode()
+        if mode == "structure":
+            if self._structure_swing_high_price is None:
+                return self._break_even_level
+            buffer_value = float(getattr(self.settings, "auto_trade_structure_buffer", 0.0))
+            candidate = float(self._structure_swing_high_price) + buffer_value
+            ceiling_value = self._entry_price if self._entry_price is not None else None
+            if ceiling_value is not None:
+                candidate = min(candidate, float(ceiling_value))
+            if self._break_even_level is None:
+                return candidate
+            result = min(float(self._break_even_level), candidate)
+            if ceiling_value is not None:
+                result = min(result, float(ceiling_value))
+            return result
+        distance = self._trailing_distance()
+        if distance is None:
+            return self._break_even_level
+        candidate = float(low_water) + float(distance)
+        ceiling_value = self._entry_price if self._entry_price is not None else None
+        if ceiling_value is not None:
+            candidate = min(candidate, float(ceiling_value))
+        if self._break_even_level is None:
+            return candidate
+        result = min(float(self._break_even_level), candidate)
+        if ceiling_value is not None:
+            result = min(result, float(ceiling_value))
+        return result
 
     def _is_protective_move(self, side: str, target: float) -> bool:
         if self._current_sl is None:
@@ -1618,11 +1881,15 @@ class AutoTradingController:
         }
         if self._last_sl_request_level != target:
             logger.info(
-                "Submitting break-even stop move: %s ticket=%s %s -> %s",
+                "Submitting break-even stop move: %s ticket=%s candidate=%s "
+                "normalized=%s prev_confirmed=%s atr=%s distance=%s",
                 side.upper(),
                 position_ticket,
-                self._current_sl,
+                target_sl,
                 target,
+                self._current_sl,
+                self._atr_value,
+                self._trailing_distance(),
             )
             self._last_sl_request_level = target
 
@@ -1834,6 +2101,10 @@ class AutoTradingController:
         self._break_even_level = None
         self._last_sl_request_level = None
         self._closed_since = None
+        self._structure_swing_low_price = None
+        self._structure_swing_low_time = None
+        self._structure_swing_high_price = None
+        self._structure_swing_high_time = None
 
     # ------------------------------------------------------------------
     # Stop cleanup
@@ -2012,6 +2283,16 @@ class AutoTradingController:
             break_even_level=self._break_even_level,
             last_processed_deal=self._last_processed_deal,
             previous_cycle_complete=self._previous_cycle_complete,
+            trailing_mode=self._trailing_mode(),
+            atr_period=self._atr_period,
+            atr_multiplier=self._atr_multiplier,
+            atr_value=self._atr_value,
+            atr_distance=self._atr_distance,
+            atr_error=self._atr_error,
+            structure_swing_low_price=self._structure_swing_low_price,
+            structure_swing_low_time=self._structure_swing_low_time,
+            structure_swing_high_price=self._structure_swing_high_price,
+            structure_swing_high_time=self._structure_swing_high_time,
         )
         st.sync()
         return st

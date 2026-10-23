@@ -70,6 +70,17 @@ class AutoTradingStatus(BaseModel):
     last_processed_deal: Any = None
     previous_cycle_complete: bool = False
 
+    trailing_mode: str | None = None
+    atr_period: int | None = None
+    atr_multiplier: float | None = None
+    atr_value: float | None = None
+    atr_distance: float | None = None
+    atr_error: str | None = None
+    structure_swing_low_price: float | None = None
+    structure_swing_low_time: Any = None
+    structure_swing_high_price: float | None = None
+    structure_swing_high_time: Any = None
+
     def sync(self) -> "AutoTradingStatus":
         self.auto_trading_status = self.status
         self.trading_status = self.status
