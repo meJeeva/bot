@@ -8,6 +8,7 @@ import { StrategyCyclePanel } from '../components/StrategyCyclePanel';
 import { PriceLevelsPanel } from '../components/PriceLevelsPanel';
 import { CycleHistoryPanel } from '../components/CycleHistoryPanel';
 import { PriceChart, type ChartLevel } from '../components/PriceChart';
+import { PerformancePanel } from '../components/PerformancePanel';
 import { useAutoTradingStatus } from '../hooks/useAutoTradingStatus';
 import { useCycleHistory } from '../hooks/useCycleHistory';
 import { useCandles } from '../hooks/useCandles';
@@ -175,6 +176,8 @@ export function DashboardView({
           <CycleHistoryPanel items={history.items} error={history.error} loaded={history.loaded} />
         </div>
       </div>
+
+      <PerformancePanel />
 
       <footer className="app-footer">
         <p>

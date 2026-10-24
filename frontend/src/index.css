@@ -1144,3 +1144,152 @@ body {
   font-family: var(--font);
   font-size: 11px;
 }
+
+/* ===========================================================================
+   Performance reporting (read-only P&L summary)
+   =========================================================================== */
+
+.performance-card {
+  margin-top: 16px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  padding: 10px 0 2px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.filter-field > span {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.filter-field select,
+.filter-field input {
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 5px 9px;
+  font-size: 12.5px;
+  font-family: var(--mono);
+  min-width: 120px;
+}
+
+.filter-field select:focus-visible,
+.filter-field input:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+}
+
+.filter-row .button {
+  align-self: flex-end;
+}
+
+.perf-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.perf-metric .metric-value {
+  font-size: 16px;
+}
+
+.perf-unavailable {
+  border-color: rgba(251, 191, 36, 0.32);
+}
+
+.perf-unavailable .metric-value {
+  color: var(--amber);
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.performance-lower {
+  margin-top: 16px;
+}
+
+.th-sort {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.th-sort:hover {
+  color: var(--teal);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--teal);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-button:hover {
+  color: var(--text-strong);
+}
+
+.row-selected {
+  background: var(--teal-soft);
+}
+
+.cumulative-line {
+  stroke: var(--teal);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.cumulative-dot {
+  stroke: none;
+}
+
+.cumulative-dot-up {
+  fill: var(--teal);
+}
+
+.cumulative-dot-down {
+  fill: var(--red);
+}
+
+.accounting-rule {
+  margin-top: 14px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.accounting-rule summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.accounting-rule p {
+  margin: 8px 0 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

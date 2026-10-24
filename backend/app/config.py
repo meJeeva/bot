@@ -124,6 +124,24 @@ class Settings(BaseSettings):
     auto_trade_stop_policy: str = Field(default="close", description="Stop policy: close or leave")
     auto_trade_max_retries: int = Field(default=3, ge=0, le=10, description="Bounded retries for transient failures")
 
+    # --- Performance reporting settings (read-only MT5 history reads) ---
+    report_timezone: str = Field(
+        default="Asia/Kolkata",
+        description="IANA timezone used for daily/weekly/monthly performance boundaries",
+    )
+    performance_max_history_days: int = Field(
+        default=92,
+        ge=1,
+        le=366,
+        description="Upper bound on the history window a performance request may span",
+    )
+    performance_cache_seconds: int = Field(
+        default=10,
+        ge=0,
+        le=300,
+        description="How long an identical performance computation is cached in memory",
+    )
+
     # --- Computed Fields ---
     @property
     def auto_trade_volume(self) -> float:

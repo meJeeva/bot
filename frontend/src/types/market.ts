@@ -176,6 +176,138 @@ export interface AutoTradingHistoryResponse {
   count: number;
 }
 
+/* -------------------------------------------------------------------------
+ * Performance reporting (`GET /api/performance/*`, read-only).
+ * Mirrors backend/app/schemas/performance.py. All amounts come from MT5
+ * deal history; `data_available: false` means the history could not be read
+ * and the UI must show "unavailable" rather than zeros.
+ * ------------------------------------------------------------------------- */
+
+export interface PerformanceCosts {
+  commission: number;
+  swap: number;
+  fee: number;
+  total: number;
+}
+
+export interface FloatingPnl {
+  open_positions: number;
+  profit: number;
+  swap: number;
+  total: number;
+}
+
+export interface CashMovement {
+  ticket: number;
+  type_code: number;
+  type_name: string;
+  time: string | null;
+  amount: number;
+  comment: string | null;
+}
+
+export interface PerformanceFilters {
+  preset: string | null;
+  start: string | null;
+  end: string | null;
+  symbol: string | null;
+  direction: 'buy' | 'sell' | null;
+  magic: number | null;
+}
+
+export interface PerformanceSummary {
+  data_available: boolean;
+  error: string | null;
+  range_start: string;
+  range_end: string;
+  reporting_timezone: string;
+  broker_time_offset_seconds: number | null;
+  time_convention: string;
+  account_currency: string | null;
+  balance: number | null;
+  equity: number | null;
+  closed_trades: number;
+  wins: number;
+  losses: number;
+  win_rate: number | null;
+  gross_pnl: number;
+  costs: PerformanceCosts;
+  net_pnl: number;
+  floating: FloatingPnl;
+  cash_movements: CashMovement[];
+  cash_movements_total: number;
+  deals_checked: number;
+  positions_matched: number;
+  filters: PerformanceFilters;
+  accounting_rule: string;
+  generated_at: string;
+}
+
+export interface DailyPerformanceItem {
+  date: string;
+  closed_trades: number;
+  wins: number;
+  losses: number;
+  gross_pnl: number;
+  costs: PerformanceCosts;
+  net_pnl: number;
+  win_rate: number | null;
+}
+
+export interface DailyPerformanceResponse {
+  data_available: boolean;
+  error: string | null;
+  range_start: string;
+  range_end: string;
+  reporting_timezone: string;
+  account_currency: string | null;
+  days: DailyPerformanceItem[];
+  totals: DailyPerformanceItem | null;
+  filters: PerformanceFilters;
+  generated_at: string;
+}
+
+export interface PerformanceTrade {
+  position_id: number;
+  symbol: string | null;
+  direction: 'buy' | 'sell' | null;
+  magic: number | null;
+  comment: string | null;
+  opened_volume: number;
+  closed_volume: number;
+  entry_time: string | null;
+  exit_time: string | null;
+  entry_price: number | null;
+  exit_price: number | null;
+  gross_pnl: number;
+  costs: PerformanceCosts;
+  net_pnl: number;
+  deal_tickets: number[];
+  order_tickets: number[];
+  close_day: string | null;
+}
+
+export interface PerformanceTradesResponse {
+  data_available: boolean;
+  error: string | null;
+  reporting_timezone: string;
+  account_currency: string | null;
+  trades: PerformanceTrade[];
+  count: number;
+  filters: PerformanceFilters;
+  generated_at: string;
+}
+
+/** Query parameters accepted by every `/api/performance/*` endpoint. */
+export interface PerformanceQuery {
+  preset?: string;
+  start?: string;
+  end?: string;
+  symbol?: string;
+  direction?: 'buy' | 'sell';
+  magic?: number;
+}
+
 export interface HealthResponse {
   status: 'ok' | 'degraded';
   app_name: string;

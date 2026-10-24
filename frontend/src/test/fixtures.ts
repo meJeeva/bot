@@ -12,8 +12,14 @@ import type {
   AutoTradingStatus,
   Candle,
   CandleSeries,
+  DailyPerformanceItem,
+  DailyPerformanceResponse,
   HealthResponse,
   MarketSnapshot,
+  PerformanceCosts,
+  PerformanceSummary,
+  PerformanceTrade,
+  PerformanceTradesResponse,
   Quote,
   Timeframe,
   TimeframeSummary,
@@ -299,4 +305,162 @@ export function makeHistoryResponse(
   items: AutoTradingHistoryItem[] = [makeHistoryItem()],
 ): AutoTradingHistoryResponse {
   return { items, history: items, count: items.length };
+}
+
+/* -------------------------------------------------------------------------
+ * Performance reporting fixtures (mirror the backend schemas).
+ * ------------------------------------------------------------------------- */
+
+export function makePerformanceCosts(overrides: Partial<PerformanceCosts> = {}): PerformanceCosts {
+  return { commission: -1.0, swap: -0.25, fee: -0.1, total: -1.35, ...overrides };
+}
+
+export function makePerformanceSummary(
+  overrides: Partial<PerformanceSummary> = {},
+): PerformanceSummary {
+  return {
+    data_available: true,
+    error: null,
+    range_start: '2026-10-01',
+    range_end: '2026-10-24',
+    reporting_timezone: 'Asia/Kolkata',
+    broker_time_offset_seconds: 10800,
+    time_convention: 'broker_server_local',
+    account_currency: 'USD',
+    balance: 10009.65,
+    equity: 10012.1,
+    closed_trades: 7,
+    wins: 4,
+    losses: 3,
+    win_rate: 0.5714,
+    gross_pnl: 24.5,
+    costs: makePerformanceCosts(),
+    net_pnl: 23.15,
+    floating: { open_positions: 1, profit: 12.5, swap: -0.3, total: 12.2 },
+    cash_movements: [
+      {
+        ticket: 900001,
+        type_code: 2,
+        type_name: 'balance',
+        time: '2026-10-02T04:00:00Z',
+        amount: 500.0,
+        comment: 'deposit',
+      },
+    ],
+    cash_movements_total: 500.0,
+    deals_checked: 42,
+    positions_matched: 7,
+    filters: {
+      preset: 'month',
+      start: null,
+      end: null,
+      symbol: null,
+      direction: null,
+      magic: null,
+    },
+    accounting_rule:
+      'Net P&L per trade = sum(profit) + sum(commission) + sum(swap) + sum(fee) over all deals of one position identifier.',
+    generated_at: '2026-10-24T12:00:00Z',
+    ...overrides,
+  };
+}
+
+export function makeDailyPerformanceItem(
+  overrides: Partial<DailyPerformanceItem> = {},
+): DailyPerformanceItem {
+  return {
+    date: '2026-10-23',
+    closed_trades: 2,
+    wins: 1,
+    losses: 1,
+    gross_pnl: 4.0,
+    costs: makePerformanceCosts(),
+    net_pnl: 2.65,
+    win_rate: 0.5,
+    ...overrides,
+  };
+}
+
+export function makeDailyPerformanceResponse(
+  days: DailyPerformanceItem[] = [makeDailyPerformanceItem()],
+  overrides: Partial<DailyPerformanceResponse> = {},
+): DailyPerformanceResponse {
+  return {
+    data_available: true,
+    error: null,
+    range_start: '2026-10-01',
+    range_end: '2026-10-24',
+    reporting_timezone: 'Asia/Kolkata',
+    account_currency: 'USD',
+    days,
+    totals: {
+      date: days[days.length - 1]?.date ?? '2026-10-24',
+      closed_trades: days.reduce((sum, day) => sum + day.closed_trades, 0),
+      wins: days.reduce((sum, day) => sum + day.wins, 0),
+      losses: days.reduce((sum, day) => sum + day.losses, 0),
+      gross_pnl: days.reduce((sum, day) => sum + day.gross_pnl, 0),
+      costs: makePerformanceCosts(),
+      net_pnl: days.reduce((sum, day) => sum + day.net_pnl, 0),
+      win_rate: 0.5714,
+    },
+    filters: {
+      preset: 'month',
+      start: null,
+      end: null,
+      symbol: null,
+      direction: null,
+      magic: null,
+    },
+    generated_at: '2026-10-24T12:00:00Z',
+    ...overrides,
+  };
+}
+
+export function makePerformanceTrade(
+  overrides: Partial<PerformanceTrade> = {},
+): PerformanceTrade {
+  return {
+    position_id: 9911,
+    symbol: 'XAUUSD',
+    direction: 'buy',
+    magic: 9001,
+    comment: 'sl',
+    opened_volume: 0.1,
+    closed_volume: 0.1,
+    entry_time: '2026-10-23T09:30:00+05:30',
+    exit_time: '2026-10-23T10:05:00+05:30',
+    entry_price: 4186.14,
+    exit_price: 4187.14,
+    gross_pnl: 10.0,
+    costs: makePerformanceCosts(),
+    net_pnl: 8.65,
+    deal_tickets: [93451425, 93451600],
+    order_tickets: [93451000, 93451001],
+    close_day: '2026-10-23',
+    ...overrides,
+  };
+}
+
+export function makePerformanceTradesResponse(
+  trades: PerformanceTrade[] = [makePerformanceTrade()],
+  overrides: Partial<PerformanceTradesResponse> = {},
+): PerformanceTradesResponse {
+  return {
+    data_available: true,
+    error: null,
+    reporting_timezone: 'Asia/Kolkata',
+    account_currency: 'USD',
+    trades,
+    count: trades.length,
+    filters: {
+      preset: 'month',
+      start: null,
+      end: null,
+      symbol: null,
+      direction: null,
+      magic: null,
+    },
+    generated_at: '2026-10-24T12:00:00Z',
+    ...overrides,
+  };
 }

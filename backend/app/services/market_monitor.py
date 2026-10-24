@@ -244,6 +244,17 @@ class MarketMonitor:
         """Last observed connection status. Performs no MT5 calls."""
         return self._connection_status
 
+    def broker_clock_offset_seconds(self) -> int | None:
+        """The measured broker-server clock offset, or ``None`` if unmeasured.
+
+        Performance reporting converts broker-local deal timestamps to true
+        UTC with this offset; ``None`` means no tick has calibrated the clock
+        yet and the caller must say so instead of assuming.
+        """
+        if not self._clock.measured:
+            return None
+        return int(self._clock.offset_seconds)
+
     def stamp_server_clock(self, status: MT5Status) -> MT5Status:
         """Attach the measured broker clock offset to a status object.
 

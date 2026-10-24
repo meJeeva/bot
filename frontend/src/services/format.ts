@@ -29,6 +29,48 @@ export function formatPoints(value: number | null | undefined): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+/** Money-style amount with two decimals, or the placeholder. */
+export function formatAmount(value: number | null | undefined): string {
+  if (!isUsableNumber(value)) {
+    return UNAVAILABLE_GLYPH;
+  }
+  return value.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Signed money-style amount: `+`/`-` is always explicit when a value exists. */
+export function formatSignedAmount(value: number | null | undefined): string {
+  if (!isUsableNumber(value)) {
+    return UNAVAILABLE_GLYPH;
+  }
+  const fixed = formatAmount(Math.abs(value));
+  if (value > 0) {
+    return `+${fixed}`;
+  }
+  if (value < 0) {
+    return `-${fixed}`;
+  }
+  return fixed;
+}
+
+/** Semantic tone class for a signed P&L value (never color-only: the sign is rendered too). */
+export function pnlToneClass(value: number | null | undefined): string {
+  if (!isUsableNumber(value) || value === 0) {
+    return '';
+  }
+  return value > 0 ? 'text-green' : 'text-red';
+}
+
+/** Percentage 0-1 rendered as `NN.N%`, or the placeholder. */
+export function formatRatio(value: number | null | undefined): string {
+  if (!isUsableNumber(value)) {
+    return UNAVAILABLE_GLYPH;
+  }
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 /** Whole seconds as a compact human duration. */
 export function formatDuration(seconds: number | null | undefined): string {
   if (!isUsableNumber(seconds)) {

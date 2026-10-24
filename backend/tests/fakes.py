@@ -308,6 +308,10 @@ class FakeDeal:
     symbol: str = "XAUUSD"
     comment: str = "sl"
     reason: int = DEAL_REASON_SL
+    # Signed cost fields exactly as a real deal carries them (<= 0 = cost).
+    commission: float = 0.0
+    swap: float = 0.0
+    fee: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.position:
@@ -385,6 +389,10 @@ class FakeDeal:
     symbol: str = "XAUUSD"
     comment: str = "sl"
     reason: int = DEAL_REASON_SL
+    # Signed cost fields exactly as a real deal carries them (<= 0 = cost).
+    commission: float = 0.0
+    swap: float = 0.0
+    fee: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.position:

@@ -27,6 +27,7 @@ from .api.connection import router as connection_router
 from .api.auto_trading import router as auto_trading_router
 from .api.health import router as health_router
 from .api.market_data import router as market_router
+from .api.performance import router as performance_router
 from .api.websocket import router as websocket_router
 from .config import PROJECT_ROOT, Settings, get_settings
 from .errors import install_error_handlers
@@ -55,6 +56,9 @@ PUBLISHED_ENDPOINTS: tuple[str, ...] = (
     "/api/auto-trading/stop",
     "/api/auto-trading/status",
     "/api/auto-trading/history",
+    "/api/performance/summary",
+    "/api/performance/daily",
+    "/api/performance/trades",
 )
 
 #: Durable state lives next to the other runtime data (git-ignored).
@@ -113,6 +117,7 @@ def create_app(
     app.include_router(market_router)
     app.include_router(websocket_router)
     app.include_router(auto_trading_router)
+    app.include_router(performance_router)
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, Any]:
@@ -167,6 +172,12 @@ async def _startup(app: FastAPI, settings: Settings, mt5_module: Any) -> None:
     from .services.auto_trading import AutoTradingController
     controller = AutoTradingController(settings, connection, monitor, store=store)
     app.state.auto_trading = controller
+
+    # Performance reporting reuses the same serialised MT5 connection and the
+    # monitor's measured broker-clock offset. Read-only: it never submits,
+    # modifies or closes anything, and works whether trading is running or not.
+    from .services.performance import PerformanceService
+    app.state.performance = PerformanceService(connection, monitor, settings)
 
     logger.info(
         "Application started (%s, read_only=True, trading_enabled=False)",

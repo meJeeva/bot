@@ -5,6 +5,10 @@
   CandleSeries,
   AutoTradingStatus,
   AutoTradingHistoryResponse,
+  DailyPerformanceResponse,
+  PerformanceQuery,
+  PerformanceSummary,
+  PerformanceTradesResponse,
 } from '../types/market';
 
 /** Empty by default so the Vite dev proxy handles routing (and CORS). */
@@ -103,7 +107,30 @@ export const api = {
     history: (signal?: AbortSignal) =>
       request<AutoTradingHistoryResponse>('/api/auto-trading/history', { signal }),
   },
+
+  performance: {
+    summary: (query: PerformanceQuery, signal?: AbortSignal) =>
+      request<PerformanceSummary>(`/api/performance/summary${toSearchParams(query)}`, { signal }),
+    daily: (query: PerformanceQuery, signal?: AbortSignal) =>
+      request<DailyPerformanceResponse>(`/api/performance/daily${toSearchParams(query)}`, { signal }),
+    trades: (query: PerformanceQuery, signal?: AbortSignal) =>
+      request<PerformanceTradesResponse>(`/api/performance/trades${toSearchParams(query)}`, { signal }),
+  },
 };
+
+function toSearchParams(query: PerformanceQuery): string {
+  const params = new URLSearchParams();
+  if (query.preset) params.set('preset', query.preset);
+  if (query.start) params.set('start', query.start);
+  if (query.end) params.set('end', query.end);
+  if (query.symbol) params.set('symbol', query.symbol);
+  if (query.direction) params.set('direction', query.direction);
+  if (query.magic !== undefined && !Number.isNaN(query.magic)) {
+    params.set('magic', String(query.magic));
+  }
+  const encoded = params.toString();
+  return encoded ? `?${encoded}` : '';
+}
 
 /** Human-readable message for any thrown value. */
 export function describeError(error: unknown): string {
