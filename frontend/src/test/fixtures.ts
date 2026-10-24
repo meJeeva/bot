@@ -7,7 +7,11 @@
  */
 
 import type {
+  AutoTradingHistoryItem,
+  AutoTradingHistoryResponse,
+  AutoTradingStatus,
   Candle,
+  CandleSeries,
   HealthResponse,
   MarketSnapshot,
   Quote,
@@ -171,4 +175,128 @@ export function makeHealth(overrides: Partial<HealthResponse> = {}): HealthRespo
     timestamp: '2026-10-12T05:45:26.500Z',
     ...overrides,
   };
+}
+
+/**
+ * A realistic RUNNING auto-trading status: mid-cycle, buy side armed, no
+ * position yet, the sell side already removed. Shapes mirror the backend's
+ * `AutoTradingStatus` schema on this branch.
+ */
+export function makeAutoTradingStatus(
+  overrides: Partial<AutoTradingStatus> = {},
+): AutoTradingStatus {
+  return {
+    status: 'RUNNING',
+    auto_trading_status: 'RUNNING',
+    trading_status: 'RUNNING',
+    state: 'RUNNING',
+    symbol: 'XAUUSD',
+    timeframe: 'M1',
+    connection_status: 'connected',
+    terminal_connected: true,
+    trading_enabled: true,
+    balance: 10000.0,
+    equity: 10000.0,
+    position_status: 'none',
+    position_state: 'none',
+    position_ticket: null,
+    ticket: null,
+    entry_price: null,
+    entry_time: null,
+    current_profit: null,
+    profit: null,
+    unrealized_pnl: null,
+    last_entry_result: 'BUY Stop armed at 4187.58',
+    last_exit_result: null,
+    next_cycle: null,
+    next_scheduled_cycle: null,
+    next_cycle_at: null,
+    completed_cycles: 4,
+    session_completed_cycles: 4,
+    cycles_completed: 4,
+    successful_entries: 5,
+    failed_entries: 1,
+    failed_exits: 0,
+    last_error: null,
+    error: null,
+    session_id: 's-20261012-054000',
+    cycle_id: 's-20261012-054000-5',
+    magic_number: 9001,
+    strategy_phase: 'WAITING_ENTRY',
+    active_side: null,
+    reference_value: 4186.14,
+    buy_entry: 4187.14,
+    buy_sl: 4186.14,
+    sell_entry: 4185.14,
+    sell_sl: 4186.14,
+    buy_order_ticket: 630101,
+    sell_order_ticket: null,
+    highest_favorable_price: null,
+    lowest_favorable_price: null,
+    break_even_active: false,
+    break_even_level: null,
+    last_processed_deal: null,
+    previous_cycle_complete: true,
+    ...overrides,
+  };
+}
+
+/** A short realistic candle series around the fixture price level. */
+export function makeCandleSeries(overrides: Partial<CandleSeries> = {}): CandleSeries {
+  const base = 4186.0;
+  const candles: Candle[] = Array.from({ length: 12 }, (_, index) => {
+    const drift = Math.sin(index / 2.2) * 1.4;
+    const open = base + drift;
+    const close = base + drift + (index % 3 === 0 ? 0.42 : -0.31);
+    return makeCandle({
+      time: 1_791_794_700 + index * 60,
+      open_time_utc: new Date((1_791_794_700 + index * 60) * 1_000).toISOString(),
+      open,
+      high: Math.max(open, close) + 0.35,
+      low: Math.min(open, close) - 0.35,
+      close,
+      is_closed: index < 11,
+    });
+  });
+
+  return {
+    symbol: 'XAUUSD',
+    timeframe: 'M1',
+    timeframe_seconds: 60,
+    requested_limit: 120,
+    count: candles.length,
+    candles,
+    latest_candle: candles[candles.length - 1],
+    latest_closed_candle: candles[candles.length - 2],
+    server_time_offset_seconds: BROKER_OFFSET_SECONDS,
+    time_convention: 'broker_server_local',
+    incomplete_history: false,
+    warnings: [],
+    generated_at: '2026-10-12T05:45:26.500Z',
+    ...overrides,
+  };
+}
+
+export function makeHistoryItem(
+  overrides: Partial<AutoTradingHistoryItem> = {},
+): AutoTradingHistoryItem {
+  return {
+    cycle_id: 's-20261012-054000-4',
+    symbol: 'XAUUSD',
+    entry_time: '2026-10-12T05:41:12.000Z',
+    exit_time: '2026-10-12T05:43:02.000Z',
+    entry_price: 4187.14,
+    exit_price: 4186.14,
+    volume: 0.01,
+    profit: -1.0,
+    status: 'closed',
+    error: null,
+    ...overrides,
+  };
+}
+
+export function makeHistoryResponse(
+  items: AutoTradingHistoryItem[] = [makeHistoryItem()],
+): AutoTradingHistoryResponse {
+  return { items, history: items, count: items.length };
 }

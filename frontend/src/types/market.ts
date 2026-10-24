@@ -139,6 +139,43 @@ export interface MarketSnapshot {
   read_only: boolean;
 }
 
+/** `GET /api/market/candles` payload. */
+export interface CandleSeries {
+  symbol: string;
+  timeframe: string;
+  timeframe_seconds: number;
+  requested_limit: number;
+  count: number;
+  candles: Candle[];
+  latest_candle: Candle | null;
+  latest_closed_candle: Candle | null;
+  server_time_offset_seconds: number | null;
+  time_convention: string;
+  incomplete_history: boolean;
+  warnings: string[];
+  generated_at: string;
+}
+
+/** One completed (or attempted) strategy cycle from the history endpoint. */
+export interface AutoTradingHistoryItem {
+  cycle_id: string;
+  symbol: string | null;
+  entry_time: string | null;
+  exit_time: string | null;
+  entry_price: number | null;
+  exit_price: number | null;
+  volume: number | null;
+  profit: number | null;
+  status: string;
+  error: string | null;
+}
+
+export interface AutoTradingHistoryResponse {
+  items: AutoTradingHistoryItem[];
+  history: AutoTradingHistoryItem[];
+  count: number;
+}
+
 export interface HealthResponse {
   status: 'ok' | 'degraded';
   app_name: string;
@@ -202,6 +239,7 @@ export interface AutoTradingStatus {
   next_cycle_at?: string | null;
 
   completed_cycles: number;
+  session_completed_cycles?: number;
   cycles_completed?: number;
   successful_entries: number;
   failed_entries: number;

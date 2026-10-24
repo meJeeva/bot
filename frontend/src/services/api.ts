@@ -2,7 +2,9 @@
   ApiErrorBody,
   HealthResponse,
   MarketSnapshot,
+  CandleSeries,
   AutoTradingStatus,
+  AutoTradingHistoryResponse,
 } from '../types/market';
 
 /** Empty by default so the Vite dev proxy handles routing (and CORS). */
@@ -84,11 +86,22 @@ export const api = {
 
   snapshot: (signal?: AbortSignal) => request<MarketSnapshot>('/api/market/snapshot', { signal }),
 
+  candles: (
+    timeframe: string,
+    limit: number,
+    signal?: AbortSignal,
+  ) =>
+    request<CandleSeries>(
+      `/api/market/candles?timeframe=${encodeURIComponent(timeframe)}&limit=${limit}`,
+      { signal },
+    ),
+
   autoTrading: {
     start: () => request<AutoTradingStatus>('/api/auto-trading/start', { method: 'POST' }),
     stop: () => request<AutoTradingStatus>('/api/auto-trading/stop', { method: 'POST' }),
     status: (signal?: AbortSignal) => request<AutoTradingStatus>('/api/auto-trading/status', { signal }),
-    history: (signal?: AbortSignal) => request<{ items: unknown[]; count: number }>('/api/auto-trading/history', { signal }),
+    history: (signal?: AbortSignal) =>
+      request<AutoTradingHistoryResponse>('/api/auto-trading/history', { signal }),
   },
 };
 

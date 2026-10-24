@@ -54,7 +54,7 @@ export function QuotePanel({ quote }: QuotePanelProps) {
             </div>
 
             <div className="quote-cell">
-              <span className="quote-label">Spread</span>
+              <span className="quote-label">Spread (price)</span>
               <span className="quote-price" data-testid="quote-spread">
                 <ValueOrUnavailable
                   value={formatPrice(quote.spread_price, quote.digits)}
@@ -69,7 +69,12 @@ export function QuotePanel({ quote }: QuotePanelProps) {
             <div className="quote-cell">
               <span className="quote-label">Last</span>
               <span className="quote-price">
-                <ValueOrUnavailable value={formatPrice(quote.last, quote.digits)} raw={quote.last} />
+                {/* MT5 publishes 0.0 when the broker supplies no last price;
+                    that sentinel is rendered as unavailable, not as a price. */}
+                <ValueOrUnavailable
+                  value={formatPrice(quote.last, quote.digits)}
+                  raw={quote.last ? quote.last : null}
+                />
               </span>
             </div>
           </div>
