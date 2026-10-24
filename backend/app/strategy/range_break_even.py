@@ -1,18 +1,22 @@
-"""Pure value/trailing calculations for the XAUUSD M1 strategy.
+"""Pure value/trailing calculations for the M1 stop-order strategy.
 
-Every offset in this module is an **absolute price difference of 1.00**, not a
-pip, point or broker tick.  Prices are normalised to the symbol's own tick size
-only at the edge (when an MT5 request is built); the arithmetic itself is kept
-exact so the required one-unit offsets cannot silently change.
+Every offset in this module is an **absolute price difference in the
+configured instrument's own price units** (XAUUSD by default, BTCUSD on the
+crypto deployment), never a pip, point or broker tick.  Prices are normalised
+to the symbol's own tick size only at the edge (when an MT5 request is built);
+the arithmetic itself is kept exact so the required offsets cannot silently
+change.
 
-Formulas (R is the market reference captured for the cycle):
+The formulas are instrument-independent - with the configured entry offset E,
+break-even activation B and trailing distance T, and R the market reference
+captured for the cycle:
 
-* Buy entry  = R + 1.00, initial Buy SL  = R
-* Sell entry = R - 1.00, initial Sell SL = R
-* Buy break-even activation  = Buy entry + 1.00
-* Buy trailing stop          = highest favourable price - 0.40
-* Sell break-even activation = Sell entry - 1.00
-* Sell trailing stop         = lowest favourable price + 0.40
+* Buy entry  = R + E, initial Buy SL  = R
+* Sell entry = R - E, initial Sell SL = R
+* Buy break-even activation  = Buy entry + B
+* Buy trailing stop          = highest favourable price - T
+* Sell break-even activation = Sell entry - B
+* Sell trailing stop         = lowest favourable price + T
 
 Break-even stops only ever move in the protective direction.  This module
 expresses that as ``max`` (buy) and ``min`` (sell), which makes loosening a stop
@@ -23,7 +27,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-#: Required absolute XAUUSD price offset.  Do not reinterpret as a pip/point.
+#: Required absolute entry offset for the DEFAULT instrument (XAUUSD).  Do
+#: not reinterpret as a pip/point.  The controller uses the configured
+#: ``AUTO_TRADE_ENTRY_OFFSET`` instead whenever one is set (required for BTCUSD).
 PRICE_OFFSET = 1.0
 
 #: Break-even activation offset applied after entry.
@@ -47,7 +53,9 @@ STATIC_TRAILING_DISTANCE = TRAILING_DISTANCE
 STATIC_TRAILING_DISTANCE_UNITS = TRAILING_DISTANCE
 BE_TRAILING_DISTANCE = TRAILING_DISTANCE
 
-#: The only symbol and chart timeframe this strategy is allowed to trade.
+#: Default symbol and chart timeframe.  The controller's configured
+#: ``AUTO_TRADE_SYMBOL`` / ``MT5_SYMBOL`` and ``AUTO_TRADE_TIMEFRAME`` take
+#: precedence; nothing in the strategy itself is instrument-specific.
 STRATEGY_SYMBOL = "XAUUSD"
 STRATEGY_TIMEFRAME = "M1"
 
@@ -71,8 +79,9 @@ def normalize_price(
     """Return ``price`` normalised to a valid symbol tick.
 
     The normalisation is a rounding of the already-calculated value; it never
-    substitutes a different threshold.  With XAUUSD's usual tick size of 0.01
-    a calculated 4101.00 stays 4101.00.
+    substitutes a different threshold.  With the usual 0.01 tick size a
+    calculated 4101.00 stays 4101.00; a BTCUSD tick of 0.01 or 0.1 normalises
+    against the broker's own reported metadata.
     """
     if price is None:
         return None
@@ -106,13 +115,19 @@ def build_cycle_levels(
     reference: float,
     tick_size: float | None = None,
     digits: int | None = None,
+    entry_offset: float | None = None,
 ) -> CycleLevels:
-    """Calculate the Phase 1 levels for a new cycle."""
+    """Calculate the Phase 1 levels for a new cycle.
+
+    ``entry_offset`` is the configured absolute entry distance; the module
+    default (``PRICE_OFFSET``) applies only when the caller passes nothing.
+    """
+    offset = PRICE_OFFSET if entry_offset is None else float(entry_offset)
     ref = normalize_price(reference, tick_size, digits)
     if ref is None:
         raise ValueError("A finite market reference value is required")
-    buy_entry = normalize_price(ref + PRICE_OFFSET, tick_size, digits)
-    sell_entry = normalize_price(ref - PRICE_OFFSET, tick_size, digits)
+    buy_entry = normalize_price(ref + offset, tick_size, digits)
+    sell_entry = normalize_price(ref - offset, tick_size, digits)
     initial_buy_sl = normalize_price(ref, tick_size, digits)
     initial_sell_sl = normalize_price(ref, tick_size, digits)
     assert buy_entry is not None and sell_entry is not None

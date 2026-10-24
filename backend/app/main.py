@@ -93,7 +93,8 @@ def create_app(
         title=settings.app_name,
         version=settings.app_version,
         description=(
-            "Read-only XAUUSD market data from MetaTrader 5. The application "
+            "Read-only market data and the static M1 strategy for the "
+            "configured instrument (MT5_SYMBOL) from MetaTrader 5. The application "
             "connects to the terminal, reads ticks, candles and account "
             "information, and exposes them over REST and WebSocket. It cannot "
             "place, modify or close an order."

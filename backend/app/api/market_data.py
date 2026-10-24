@@ -1,6 +1,6 @@
 """Market-data REST endpoints.
 
-``GET /api/market/quote``      - latest XAUUSD bid / ask / spread / freshness
+``GET /api/market/quote``      - latest bid / ask / spread / freshness for the configured symbol
 ``GET /api/market/candles``    - historical OHLC for one of the seven timeframes
 ``GET /api/market/snapshot``   - connection + symbol + quote + update time
 ``GET /api/market/symbols``    - symbol discovery detail (ambiguity diagnostics)

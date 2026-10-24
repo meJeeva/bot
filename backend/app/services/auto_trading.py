@@ -1,4 +1,4 @@
-"""XAUUSD M1 stop-order strategy controller.
+"""Configured-instrument M1 stop-order strategy controller.
 
 This is the automatic-trading engine behind the existing
 ``/api/auto-trading`` endpoints and the dashboard's Start/Stop controls.  It
@@ -43,6 +43,7 @@ from ..schemas.auto_trading import (
 )
 from ..services.market_monitor import MarketMonitor
 from ..strategy.range_break_even import (
+    PRICE_OFFSET,
     STRATEGY_SYMBOL,
     STRATEGY_TIMEFRAME,
     build_cycle_levels,
@@ -104,20 +105,31 @@ def _get_attr(obj: Any, name: str, default: Any = None) -> Any:
         return default
 
 
-def _is_gold_symbol(symbol: str | None) -> bool:
-    """Whether ``symbol`` is the broker's XAUUSD instrument.
+def _is_strategy_symbol(symbol: str | None, base: str | None) -> bool:
+    """Whether ``symbol`` is a broker variant of the configured instrument.
 
-    Broker suffixes are accepted (``XAUUSDm``, ``XAUUSD.c``, ``#XAUUSD``) but
-    no other instrument is.
+    Broker suffixes and prefixes are accepted (``BTCUSDm``, ``XAUUSD.c``,
+    ``#XAUUSD``) but a *different* instrument never is. There is no fallback
+    to another symbol: if the configured instrument cannot be resolved, the
+    deployment stays blocked.
     """
-    if not symbol:
+    if not symbol or not base:
         return False
-    normalised = str(symbol).strip().upper().replace("#", "").replace("/", "")
-    return normalised.startswith(STRATEGY_SYMBOL)
+    try:
+        from ..mt5.symbols import classify_symbol_variant
+
+        return classify_symbol_variant(str(symbol), str(base)) is not None
+    except Exception:  # noqa: BLE001 - defensive fallback
+        normalised = str(symbol).strip().upper().replace("#", "").replace("/", "")
+        return normalised.startswith(str(base).strip().upper())
 
 
 class AutoTradingController:
-    """State machine for the XAUUSD M1 value/removing/switching strategy."""
+    """State machine for the M1 value/removing/switching strategy.
+
+    The instrument (default XAUUSD) and its distances come from settings; the
+    three-phase lifecycle itself is instrument-independent.
+    """
 
     def __init__(
         self,
@@ -199,8 +211,24 @@ class AutoTradingController:
         # Symbol metadata used to normalise submitted prices.
         self._tick_size: float | None = None
         self._digits: int | None = None
+        # Configured instrument identity. The strategy formulas are generic;
+        # the symbol, timeframe and entry offset come from configuration, and
+        # the XAUUSD module defaults apply only while nothing else is set.
+        self._strategy_symbol = str(
+            getattr(settings, "auto_trade_symbol", None)
+            or getattr(settings, "mt5_symbol", None)
+            or STRATEGY_SYMBOL
+        ).upper()
+        self._strategy_timeframe = str(
+            getattr(settings, "auto_trade_timeframe", None) or STRATEGY_TIMEFRAME
+        ).upper()
+        raw_entry_offset = getattr(settings, "auto_trade_entry_offset", None)
+        self._entry_offset = (
+            float(raw_entry_offset) if raw_entry_offset is not None else PRICE_OFFSET
+        )
 
-        # Configured strategy distances (absolute XAUUSD price units).
+        # Configured strategy distances (absolute price units of the configured
+        # instrument; the entry offset is required explicitly for BTCUSD).
         self._break_even_offset = float(
             getattr(settings, "auto_trade_break_even_offset", 0.40)
         )
@@ -392,24 +420,58 @@ class AutoTradingController:
             raise RuntimeError("MT5 account info is unavailable")
 
         requested = str(getattr(self.settings, "mt5_symbol", "") or "")
-        if not _is_gold_symbol(requested):
-            raise RuntimeError("This strategy trades XAUUSD only")
+        if not _is_strategy_symbol(requested, self._strategy_symbol):
+            raise RuntimeError(
+                f"This strategy trades {self._strategy_symbol} only; "
+                f"MT5_SYMBOL is configured as {requested!r}"
+            )
 
         symbol = self._resolved_symbol()
-        if not _is_gold_symbol(symbol):
-            raise RuntimeError("The resolved trading symbol is not XAUUSD")
+        if not _is_strategy_symbol(symbol, self._strategy_symbol):
+            raise RuntimeError(
+                f"The resolved trading symbol {symbol!r} is not a variant of "
+                f"{self._strategy_symbol}; no other instrument is traded and "
+                "there is no automatic fallback"
+            )
 
         quote = self.monitor.latest_quote()
         if quote is None or _get_attr(quote, "is_stale", False):
             raise RuntimeError("Market prices are unavailable or stale")
         if self._reference_price(quote) is None:
-            raise RuntimeError("A valid XAUUSD bid/ask is unavailable")
+            raise RuntimeError(
+                f"A valid {self._strategy_symbol} bid/ask is unavailable"
+            )
 
         info = await self.connection.acall(mt5.symbol_info, symbol)
         if info is None:
             raise RuntimeError("Symbol info is unavailable")
         self._tick_size = _get_attr(info, "trade_tick_size", None) or _get_attr(info, "point", None)
         self._digits = _get_attr(info, "digits", None)
+
+        # A chart being visible in the terminal says nothing about algorithmic
+        # trading: trade_mode 0 means the broker disabled the instrument.
+        trade_mode = _get_attr(info, "trade_mode", None)
+        if trade_mode == 0:
+            raise RuntimeError(
+                f"{symbol} reports trade_mode=0: trading is disabled for this "
+                "instrument; no orders will be placed"
+            )
+        logger.info(
+            "Resolved %s metadata: digits=%s point=%s tick_size=%s "
+            "volume_min=%s volume_max=%s volume_step=%s contract_size=%s "
+            "trade_mode=%s stops_level=%s freeze_level=%s",
+            symbol,
+            self._digits,
+            _get_attr(info, "point", None),
+            self._tick_size,
+            _get_attr(info, "volume_min", None),
+            _get_attr(info, "volume_max", None),
+            _get_attr(info, "volume_step", None),
+            _get_attr(info, "trade_contract_size", None),
+            trade_mode,
+            _get_attr(info, "trade_stops_level", None),
+            _get_attr(info, "trade_freeze_level", None),
+        )
 
         volume = self.settings.auto_trade_lot_size
         vmin = _get_attr(info, "volume_min", None)
@@ -499,12 +561,18 @@ class AutoTradingController:
         quote = self.monitor.latest_quote()
         if quote is None or _get_attr(quote, "is_stale", False):
             if self._last_connectivity_log != "stale":
-                logger.warning("Strategy paused: live XAUUSD prices are unavailable or stale")
+                logger.warning(
+                "Strategy paused: live %s prices are unavailable or stale",
+                self._strategy_symbol,
+            )
                 self._last_connectivity_log = "stale"
             self._last_error = "Market prices are unavailable or stale"
             return
         if self._last_connectivity_log == "stale":
-            logger.info("Strategy resumed: live XAUUSD prices are available")
+            logger.info(
+                "Strategy resumed: live %s prices are available",
+                self._strategy_symbol,
+            )
             self._last_connectivity_log = None
 
         await self._reconcile(quote)
@@ -930,16 +998,21 @@ class AutoTradingController:
         entry = _get_attr(buy_order or sell_order, "price", None)
         if self._reference_value is None and entry is not None:
             if buy_order is not None:
-                self._reference_value = self._norm(float(entry) - 1.0)
+                self._reference_value = self._norm(
+                    float(entry) - self._entry_offset
+                )
             else:
-                self._reference_value = self._norm(float(entry) + 1.0)
+                self._reference_value = self._norm(
+                    float(entry) + self._entry_offset
+                )
         if self._reference_value is None:
             self._phase = PHASE_INITIALIZING
             return
 
         if self._buy_entry is None or self._sell_entry is None:
             self._set_levels(build_cycle_levels(
-                self._reference_value, self._tick_size, self._digits
+                self._reference_value, self._tick_size, self._digits,
+                self._entry_offset,
             ))
         if self._current_cycle_id is None:
             self._cycle_counter += 1
@@ -1045,9 +1118,9 @@ class AutoTradingController:
         # A recovered position may not have a cycle at all.
         if self._reference_value is None or self._buy_entry is None or self._sell_entry is None:
             reference = (
-                self._entry_price - 1.0
+                self._entry_price - self._entry_offset
                 if side == SIDE_BUY
-                else self._entry_price + 1.0
+                else self._entry_price + self._entry_offset
             )
             self._reference_value = self._norm(reference)
             if self._current_cycle_id is None:
@@ -1065,7 +1138,8 @@ class AutoTradingController:
                 )
             self._set_levels(
                 build_cycle_levels(
-                    self._reference_value, self._tick_size, self._digits
+                    self._reference_value, self._tick_size, self._digits,
+                    self._entry_offset,
                 )
             )
             logger.info(
@@ -1180,7 +1254,9 @@ class AutoTradingController:
 
         self._cycle_counter += 1
         self._current_cycle_id = f"{self._session_id}-{self._cycle_counter}"
-        levels = build_cycle_levels(reference, self._tick_size, self._digits)
+        levels = build_cycle_levels(
+            reference, self._tick_size, self._digits, self._entry_offset
+        )
         self._set_levels(levels)
 
         self._active_side = None
@@ -2009,7 +2085,7 @@ class AutoTradingController:
         st = AutoTradingStatus(
             status=self._status,
             symbol=self._resolved_symbol(),
-            timeframe=STRATEGY_TIMEFRAME,
+            timeframe=self._strategy_timeframe,
             connection_status="connected" if terminal_connected else "disconnected",
             terminal_connected=terminal_connected,
             trading_enabled=self._status in ("RUNNING", "STARTING"),

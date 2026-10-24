@@ -98,6 +98,19 @@ class Settings(BaseSettings):
     )
 
     # --- Automatic trading settings (5-second cycle) ---
+    auto_trade_symbol: Optional[str] = Field(
+        default=None,
+        description="Instrument the strategy trades (e.g. BTCUSD). Synced with MT5_SYMBOL; the XAUUSD default applies while unset",
+    )
+    auto_trade_timeframe: str = Field(
+        default="M1",
+        description="Strategy chart timeframe. This static strategy runs on M1 only",
+    )
+    auto_trade_entry_offset: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description="Absolute price distance of the Buy/Sell Stop entries from the cycle reference. Required for BTCUSD; the XAUUSD default is 1.00",
+    )
     auto_trade_magic_number: int = Field(default=9001, description="Magic number for the automatic trading strategy")
     auto_trade_lot_size: float = Field(
         default=0.01,
@@ -108,12 +121,12 @@ class Settings(BaseSettings):
     auto_trade_break_even_offset: float = Field(
         default=0.40,
         gt=0,
-        description="Absolute XAUUSD price distance used to activate break-even trailing",
+        description="Absolute price distance used to activate break-even trailing",
     )
     auto_trade_trailing_distance: float = Field(
         default=0.40,
         gt=0,
-        description="Absolute XAUUSD price distance used for static trailing after activation",
+        description="Absolute price distance used for static trailing after activation",
     )
     auto_trade_max_spread_points: float = Field(default=100.0, ge=0, description="Maximum permitted spread in points")
     auto_trade_max_entry_deviation_points: int = Field(default=20, ge=0, description="Maximum allowed entry price deviation in points")
@@ -173,7 +186,7 @@ class Settings(BaseSettings):
         removing duplicates while preserving order.
         """
         if not self.mt5_symbol_candidates:
-            return ["XAUUSD"]
+            return [self.mt5_symbol or "XAUUSD"]
         candidates = [
             candidate.strip()
             for candidate in self.mt5_symbol_candidates.split(",")
@@ -317,6 +330,18 @@ class Settings(BaseSettings):
         # Basic validation - just ensure it's not empty
         return v.strip()
 
+    @field_validator("auto_trade_timeframe")
+    @classmethod
+    def validate_auto_trade_timeframe(cls, v: str) -> str:
+        """The static strategy runs on M1 only; reject anything else clearly."""
+        timeframe = (v or "").strip().upper()
+        if timeframe != "M1":
+            raise ValueError(
+                "AUTO_TRADE_TIMEFRAME: this static strategy runs on M1 only; "
+                f"received {v!r}"
+            )
+        return timeframe
+
     @field_validator("allowed_origins")
     @classmethod
     def validate_allowed_origins(cls, v: Optional[str]) -> Optional[str]:
@@ -338,6 +363,32 @@ class Settings(BaseSettings):
         if isinstance(data, dict) and "auto_trade_volume" in data and "auto_trade_lot_size" not in data:
             data = dict(data)
             data["auto_trade_lot_size"] = data.pop("auto_trade_volume")
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_strategy_symbols(cls, data):
+        """Keep MT5_SYMBOL and AUTO_TRADE_SYMBOL on one instrument.
+
+        Setting either one fills in the other; setting both to different
+        instruments is a configuration conflict, not something to guess at.
+        """
+        if isinstance(data, dict):
+            auto = data.get("auto_trade_symbol")
+            mt5 = data.get("mt5_symbol")
+            if auto and mt5:
+                if str(auto).strip().upper() != str(mt5).strip().upper():
+                    raise ValueError(
+                        "MT5_SYMBOL and AUTO_TRADE_SYMBOL name different "
+                        f"instruments ({mt5!r} vs {auto!r}); configure one "
+                        "instrument per deployment"
+                    )
+            elif auto and not mt5:
+                data = dict(data)
+                data["mt5_symbol"] = str(auto).strip().upper()
+            elif mt5 and auto is None:
+                data = dict(data)
+                data["auto_trade_symbol"] = str(mt5).strip().upper()
         return data
 
     @field_validator(
@@ -394,6 +445,34 @@ class Settings(BaseSettings):
             raise ValueError(
                 "MT5_SERVER is required when MT5_PASSWORD is set"
             )
+
+        # One consistent instrument field: an unset AUTO_TRADE_SYMBOL mirrors
+        # MT5_SYMBOL so every reader sees the same effective instrument.
+        if self.auto_trade_symbol is None and self.mt5_symbol:
+            self.auto_trade_symbol = self.mt5_symbol
+
+        # Instrument profile: BTCUSD must never silently inherit the XAUUSD
+        # defaults. Every distance and the lot size must be configured
+        # explicitly for the crypto instrument before trading can start.
+        instrument = str(self.auto_trade_symbol or self.mt5_symbol or "").upper()
+        if instrument.startswith("BTCUSD"):
+            required_fields = (
+                ("AUTO_TRADE_ENTRY_OFFSET", "auto_trade_entry_offset"),
+                ("AUTO_TRADE_BREAK_EVEN_OFFSET", "auto_trade_break_even_offset"),
+                ("AUTO_TRADE_TRAILING_DISTANCE", "auto_trade_trailing_distance"),
+                ("AUTO_TRADE_LOT_SIZE", "auto_trade_lot_size"),
+            )
+            missing = [
+                env_name
+                for env_name, field_name in required_fields
+                if field_name not in self.model_fields_set
+            ]
+            if missing:
+                raise ValueError(
+                    "The BTCUSD profile requires explicitly configured values; "
+                    "missing: " + ", ".join(missing) + ". The XAUUSD defaults "
+                    "must not silently apply to BTCUSD."
+                )
 
         # Read-only safety check
         if not self.app_read_only:
