@@ -43,3 +43,25 @@ def monitor_from_websocket(websocket: WebSocket) -> MarketMonitor:
             status_code=503,
         )
     return monitor
+
+def get_auto_trading_controller(request: Request):
+    controller = getattr(request.app.state, "auto_trading", None)
+    if controller is None:
+        from ..errors import ApiError
+        raise ApiError(
+            "auto_trading_unavailable",
+            "The automatic trading controller is not available.",
+            status_code=503,
+        )
+    return controller
+
+
+def get_performance_service(request: Request):
+    service = getattr(request.app.state, "performance", None)
+    if service is None:
+        raise ApiError(
+            "performance_unavailable",
+            "The performance reporting service is not available.",
+            status_code=503,
+        )
+    return service

@@ -19,6 +19,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
+from decimal import Decimal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .status import DataStatus, MT5Status, SymbolInfo, SymbolStatus, utc_now
@@ -59,8 +61,8 @@ class Quote(BaseModel):
     @model_validator(mode="after")
     def _check_spread(self) -> "Quote":
         if self.bid is not None and self.ask is not None:
-            expected = round(self.ask - self.bid, 10)
-            if self.spread_price is not None and abs(self.spread_price - expected) > 1e-6:
+            expected = float(Decimal(str(self.ask)) - Decimal(str(self.bid)))
+            if self.spread_price is not None and abs(self.spread_price - expected) > 1e-9:
                 raise ValueError(
                     "spread_price must equal ask - bid "
                     f"({expected} != {self.spread_price})"

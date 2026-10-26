@@ -24,8 +24,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.connection import router as connection_router
+from .api.auto_trading import router as auto_trading_router
 from .api.health import router as health_router
 from .api.market_data import router as market_router
+from .api.performance import router as performance_router
 from .api.websocket import router as websocket_router
 from .config import PROJECT_ROOT, Settings, get_settings
 from .errors import install_error_handlers
@@ -50,6 +52,13 @@ PUBLISHED_ENDPOINTS: tuple[str, ...] = (
     "/api/market/timeframes",
     "/api/market/symbols",
     "/ws/market",
+    "/api/auto-trading/start",
+    "/api/auto-trading/stop",
+    "/api/auto-trading/status",
+    "/api/auto-trading/history",
+    "/api/performance/summary",
+    "/api/performance/daily",
+    "/api/performance/trades",
 )
 
 #: Durable state lives next to the other runtime data (git-ignored).
@@ -71,6 +80,11 @@ def create_app(
     """
     settings = settings or get_settings()
     setup_logging(settings.log_level, settings.log_format)
+    logger.info(
+        "Loaded configuration: profile=%s, lot_size=%s (credentials not logged)",
+        getattr(settings, "auto_trade_profile", None),
+        getattr(settings, "auto_trade_lot_size", None),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -84,7 +98,8 @@ def create_app(
         title=settings.app_name,
         version=settings.app_version,
         description=(
-            "Read-only XAUUSD market data from MetaTrader 5. The application "
+            "Read-only market data and the static M1 strategy for the "
+            "configured instrument (MT5_SYMBOL) from MetaTrader 5. The application "
             "connects to the terminal, reads ticks, candles and account "
             "information, and exposes them over REST and WebSocket. It cannot "
             "place, modify or close an order."
@@ -107,6 +122,8 @@ def create_app(
     app.include_router(connection_router)
     app.include_router(market_router)
     app.include_router(websocket_router)
+    app.include_router(auto_trading_router)
+    app.include_router(performance_router)
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, Any]:
@@ -158,6 +175,16 @@ async def _startup(app: FastAPI, settings: Settings, mt5_module: Any) -> None:
 
     await monitor.start()
 
+    from .services.auto_trading import AutoTradingController
+    controller = AutoTradingController(settings, connection, monitor, store=store)
+    app.state.auto_trading = controller
+
+    # Performance reporting reuses the same serialised MT5 connection and the
+    # monitor's measured broker-clock offset. Read-only: it never submits,
+    # modifies or closes anything, and works whether trading is running or not.
+    from .services.performance import PerformanceService
+    app.state.performance = PerformanceService(connection, monitor, settings)
+
     logger.info(
         "Application started (%s, read_only=True, trading_enabled=False)",
         PHASE,
@@ -170,7 +197,13 @@ async def _shutdown(app: FastAPI) -> None:
     store = getattr(app.state, "store", None)
     monitor = getattr(app.state, "monitor", None)
     connection = getattr(app.state, "connection", None)
+    controller = getattr(app.state, "auto_trading", None)
 
+    if controller is not None:
+        try:
+            await controller.stop()
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to stop auto-trading cleanly")
     for name, component, method in (
         ("market monitor", monitor, "stop"),
         ("mt5 connection", connection, "shutdown"),

@@ -110,7 +110,28 @@ export function ConnectionStatusCard({
           <dt>Broker / UTC offset</dt>
           <dd>{formatOffset(connection?.server_time_offset_seconds ?? null)}</dd>
         </div>
+
+        <div>
+          <dt>Trading permission</dt>
+          <dd data-testid="trading-permission">
+            {connection
+              ? connection.trading_enabled
+                ? 'terminal trading enabled'
+                : 'terminal trading disabled'
+              : '—'}
+            {` · ${connection?.read_only ?? snapshot?.read_only ?? true ? 'dashboard read-only' : 'dashboard read-write'}`}
+          </dd>
+        </div>
       </dl>
+
+      {connection?.reconnecting ? (
+        <p className="alert alert-warning" data-testid="reconnect-detail">
+          Reconnecting (attempt {connection.reconnect_attempts})
+          {connection.next_reconnect_at
+            ? ` · next retry ${formatDateTime(connection.next_reconnect_at)}`
+            : ''}
+        </p>
+      ) : null}
 
       {symbol?.requires_configuration ? (
         <p className="alert alert-warning" data-testid="symbol-ambiguity">

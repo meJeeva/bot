@@ -7,9 +7,19 @@
  */
 
 import type {
+  AutoTradingHistoryItem,
+  AutoTradingHistoryResponse,
+  AutoTradingStatus,
   Candle,
+  CandleSeries,
+  DailyPerformanceItem,
+  DailyPerformanceResponse,
   HealthResponse,
   MarketSnapshot,
+  PerformanceCosts,
+  PerformanceSummary,
+  PerformanceTrade,
+  PerformanceTradesResponse,
   Quote,
   Timeframe,
   TimeframeSummary,
@@ -169,6 +179,288 @@ export function makeHealth(overrides: Partial<HealthResponse> = {}): HealthRespo
     terminal_connected: true,
     data_status: 'live',
     timestamp: '2026-10-12T05:45:26.500Z',
+    ...overrides,
+  };
+}
+
+/**
+ * A realistic RUNNING auto-trading status: mid-cycle, buy side armed, no
+ * position yet, the sell side already removed. Shapes mirror the backend's
+ * `AutoTradingStatus` schema on this branch.
+ */
+export function makeAutoTradingStatus(
+  overrides: Partial<AutoTradingStatus> = {},
+): AutoTradingStatus {
+  return {
+    status: 'RUNNING',
+    auto_trading_status: 'RUNNING',
+    trading_status: 'RUNNING',
+    state: 'RUNNING',
+    symbol: 'XAUUSD',
+    timeframe: 'M1',
+    connection_status: 'connected',
+    terminal_connected: true,
+    trading_enabled: true,
+    balance: 10000.0,
+    equity: 10000.0,
+    position_status: 'none',
+    position_state: 'none',
+    position_ticket: null,
+    ticket: null,
+    entry_price: null,
+    entry_time: null,
+    current_profit: null,
+    profit: null,
+    unrealized_pnl: null,
+    last_entry_result: 'BUY Stop armed at 4187.58',
+    last_exit_result: null,
+    next_cycle: null,
+    next_scheduled_cycle: null,
+    next_cycle_at: null,
+    completed_cycles: 4,
+    session_completed_cycles: 4,
+    cycles_completed: 4,
+    successful_entries: 5,
+    failed_entries: 1,
+    failed_exits: 0,
+    last_error: null,
+    error: null,
+    session_id: 's-20261012-054000',
+    cycle_id: 's-20261012-054000-5',
+    magic_number: 9001,
+    strategy_phase: 'WAITING_ENTRY',
+    active_side: null,
+    reference_value: 4186.14,
+    buy_entry: 4187.14,
+    buy_sl: 4186.14,
+    sell_entry: 4185.14,
+    sell_sl: 4186.14,
+    buy_order_ticket: 630101,
+    sell_order_ticket: null,
+    highest_favorable_price: null,
+    lowest_favorable_price: null,
+    break_even_active: false,
+    break_even_level: null,
+    last_processed_deal: null,
+    previous_cycle_complete: true,
+    ...overrides,
+  };
+}
+
+/** A short realistic candle series around the fixture price level. */
+export function makeCandleSeries(overrides: Partial<CandleSeries> = {}): CandleSeries {
+  const base = 4186.0;
+  const candles: Candle[] = Array.from({ length: 12 }, (_, index) => {
+    const drift = Math.sin(index / 2.2) * 1.4;
+    const open = base + drift;
+    const close = base + drift + (index % 3 === 0 ? 0.42 : -0.31);
+    return makeCandle({
+      time: 1_791_794_700 + index * 60,
+      open_time_utc: new Date((1_791_794_700 + index * 60) * 1_000).toISOString(),
+      open,
+      high: Math.max(open, close) + 0.35,
+      low: Math.min(open, close) - 0.35,
+      close,
+      is_closed: index < 11,
+    });
+  });
+
+  return {
+    symbol: 'XAUUSD',
+    timeframe: 'M1',
+    timeframe_seconds: 60,
+    requested_limit: 120,
+    count: candles.length,
+    candles,
+    latest_candle: candles[candles.length - 1],
+    latest_closed_candle: candles[candles.length - 2],
+    server_time_offset_seconds: BROKER_OFFSET_SECONDS,
+    time_convention: 'broker_server_local',
+    incomplete_history: false,
+    warnings: [],
+    generated_at: '2026-10-12T05:45:26.500Z',
+    ...overrides,
+  };
+}
+
+export function makeHistoryItem(
+  overrides: Partial<AutoTradingHistoryItem> = {},
+): AutoTradingHistoryItem {
+  return {
+    cycle_id: 's-20261012-054000-4',
+    symbol: 'XAUUSD',
+    entry_time: '2026-10-12T05:41:12.000Z',
+    exit_time: '2026-10-12T05:43:02.000Z',
+    entry_price: 4187.14,
+    exit_price: 4186.14,
+    volume: 0.01,
+    profit: -1.0,
+    status: 'closed',
+    error: null,
+    ...overrides,
+  };
+}
+
+export function makeHistoryResponse(
+  items: AutoTradingHistoryItem[] = [makeHistoryItem()],
+): AutoTradingHistoryResponse {
+  return { items, history: items, count: items.length };
+}
+
+/* -------------------------------------------------------------------------
+ * Performance reporting fixtures (mirror the backend schemas).
+ * ------------------------------------------------------------------------- */
+
+export function makePerformanceCosts(overrides: Partial<PerformanceCosts> = {}): PerformanceCosts {
+  return { commission: -1.0, swap: -0.25, fee: -0.1, total: -1.35, ...overrides };
+}
+
+export function makePerformanceSummary(
+  overrides: Partial<PerformanceSummary> = {},
+): PerformanceSummary {
+  return {
+    data_available: true,
+    error: null,
+    range_start: '2026-10-01',
+    range_end: '2026-10-24',
+    reporting_timezone: 'Asia/Kolkata',
+    broker_time_offset_seconds: 10800,
+    time_convention: 'broker_server_local',
+    account_currency: 'USD',
+    balance: 10009.65,
+    equity: 10012.1,
+    closed_trades: 7,
+    wins: 4,
+    losses: 3,
+    win_rate: 0.5714,
+    gross_pnl: 24.5,
+    costs: makePerformanceCosts(),
+    net_pnl: 23.15,
+    floating: { open_positions: 1, profit: 12.5, swap: -0.3, total: 12.2 },
+    cash_movements: [
+      {
+        ticket: 900001,
+        type_code: 2,
+        type_name: 'balance',
+        time: '2026-10-02T04:00:00Z',
+        amount: 500.0,
+        comment: 'deposit',
+      },
+    ],
+    cash_movements_total: 500.0,
+    deals_checked: 42,
+    positions_matched: 7,
+    filters: {
+      preset: 'month',
+      start: null,
+      end: null,
+      symbol: null,
+      direction: null,
+      magic: null,
+    },
+    accounting_rule:
+      'Net P&L per trade = sum(profit) + sum(commission) + sum(swap) + sum(fee) over all deals of one position identifier.',
+    generated_at: '2026-10-24T12:00:00Z',
+    ...overrides,
+  };
+}
+
+export function makeDailyPerformanceItem(
+  overrides: Partial<DailyPerformanceItem> = {},
+): DailyPerformanceItem {
+  return {
+    date: '2026-10-23',
+    closed_trades: 2,
+    wins: 1,
+    losses: 1,
+    gross_pnl: 4.0,
+    costs: makePerformanceCosts(),
+    net_pnl: 2.65,
+    win_rate: 0.5,
+    ...overrides,
+  };
+}
+
+export function makeDailyPerformanceResponse(
+  days: DailyPerformanceItem[] = [makeDailyPerformanceItem()],
+  overrides: Partial<DailyPerformanceResponse> = {},
+): DailyPerformanceResponse {
+  return {
+    data_available: true,
+    error: null,
+    range_start: '2026-10-01',
+    range_end: '2026-10-24',
+    reporting_timezone: 'Asia/Kolkata',
+    account_currency: 'USD',
+    days,
+    totals: {
+      date: days[days.length - 1]?.date ?? '2026-10-24',
+      closed_trades: days.reduce((sum, day) => sum + day.closed_trades, 0),
+      wins: days.reduce((sum, day) => sum + day.wins, 0),
+      losses: days.reduce((sum, day) => sum + day.losses, 0),
+      gross_pnl: days.reduce((sum, day) => sum + day.gross_pnl, 0),
+      costs: makePerformanceCosts(),
+      net_pnl: days.reduce((sum, day) => sum + day.net_pnl, 0),
+      win_rate: 0.5714,
+    },
+    filters: {
+      preset: 'month',
+      start: null,
+      end: null,
+      symbol: null,
+      direction: null,
+      magic: null,
+    },
+    generated_at: '2026-10-24T12:00:00Z',
+    ...overrides,
+  };
+}
+
+export function makePerformanceTrade(
+  overrides: Partial<PerformanceTrade> = {},
+): PerformanceTrade {
+  return {
+    position_id: 9911,
+    symbol: 'XAUUSD',
+    direction: 'buy',
+    magic: 9001,
+    comment: 'sl',
+    opened_volume: 0.1,
+    closed_volume: 0.1,
+    entry_time: '2026-10-23T09:30:00+05:30',
+    exit_time: '2026-10-23T10:05:00+05:30',
+    entry_price: 4186.14,
+    exit_price: 4187.14,
+    gross_pnl: 10.0,
+    costs: makePerformanceCosts(),
+    net_pnl: 8.65,
+    deal_tickets: [93451425, 93451600],
+    order_tickets: [93451000, 93451001],
+    close_day: '2026-10-23',
+    ...overrides,
+  };
+}
+
+export function makePerformanceTradesResponse(
+  trades: PerformanceTrade[] = [makePerformanceTrade()],
+  overrides: Partial<PerformanceTradesResponse> = {},
+): PerformanceTradesResponse {
+  return {
+    data_available: true,
+    error: null,
+    reporting_timezone: 'Asia/Kolkata',
+    account_currency: 'USD',
+    trades,
+    count: trades.length,
+    filters: {
+      preset: 'month',
+      start: null,
+      end: null,
+      symbol: null,
+      direction: null,
+      magic: null,
+    },
+    generated_at: '2026-10-24T12:00:00Z',
     ...overrides,
   };
 }
