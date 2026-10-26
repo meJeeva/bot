@@ -48,12 +48,15 @@ from ..strategy.range_break_even import (
     STRATEGY_TIMEFRAME,
     build_cycle_levels,
     buy_activation_price,
+    calculate_atr,
+    effective_trailing_distance,
     next_buy_stop_loss,
     next_sell_stop_loss,
     normalize_price,
     price_tolerance,
     sell_activation_price,
 )
+from ..mt5.timeframes import get_timeframe
 from ..strategy.range_break_even import (
     CycleLevels as _CycleLevels,
 )
@@ -191,6 +194,30 @@ class AutoTradingController:
         self._break_even_level: float | None = None
         self._last_sl_request_level: float | None = None
         self._sl_retry_at = 0.0
+        self._sl_request_in_flight = False
+        self._pending_sl_target: float | None = None
+
+        # Dynamic trailing configuration
+        symbol_upper = str(
+            getattr(settings, "auto_trade_symbol", None)
+            or getattr(settings, "mt5_symbol", None)
+            or STRATEGY_SYMBOL
+        ).upper()
+        if symbol_upper.startswith("XAU"):
+            self._trailing_mode = str(
+                getattr(settings, "xauusd_trailing_mode", None) or "static"
+            ).strip().lower()
+            self._trail_atr_period = int(
+                getattr(settings, "xauusd_trail_atr_period", None) or 14
+            )
+            self._trail_atr_multiplier = float(
+                getattr(settings, "xauusd_trail_atr_multiplier", None) or 0.4
+            )
+        else:
+            self._trailing_mode = "static"
+            self._trail_atr_period = 14
+            self._trail_atr_multiplier = 0.4
+        self._last_trail_atr: float | None = None
 
         # Execution identity / deduplication
         self._last_processed_deal: Any = None
@@ -1156,6 +1183,16 @@ class AutoTradingController:
                 float(broker_sl) if broker_sl else float(initial_sl or 0.0) or None
             )
 
+        # Emergency protection: never silently retain an unprotected position.
+        if (broker_sl is None or float(broker_sl or 0.0) == 0.0) and initial_sl is not None:
+            logger.warning(
+                "Position %s adopted without a confirmed protective SL; "
+                "attempting initial protection at %s",
+                ticket,
+                initial_sl,
+            )
+            await self._move_stop(position, side, float(initial_sl), reason="initial protection")
+
         favourable = self._favourable_price(quote, side) if quote is not None else None
         if side == SIDE_BUY:
             baseline = self._entry_price
@@ -1638,10 +1675,29 @@ class AutoTradingController:
                     self._norm(buy_activation_price(entry)),
                 )
             if self._break_even_active and self._high_water is not None:
+                trail = await self._effective_trailing_distance()
                 previous_level = self._break_even_level
                 self._break_even_level = next_buy_stop_loss(
-                    previous_level, self._high_water, self._trailing_distance
+                    previous_level, self._high_water, trail
                 )
+                if (
+                    self._last_trail_atr is not None
+                    and self._break_even_level is not None
+                    and (previous_level is None or self._break_even_level != previous_level)
+                ):
+                    logger.info(
+                        "Trailing target updated: BUY ticket=%s bid=%s atr=%s "
+                        "effective_trail=%s desired_sl=%s confirmed_sl=%s "
+                        "in_flight=%s pending=%s",
+                        self._position_ticket,
+                        favourable,
+                        self._last_trail_atr,
+                        trail,
+                        self._break_even_level,
+                        self._current_sl,
+                        self._sl_request_in_flight,
+                        self._pending_sl_target,
+                    )
                 if self._entry_price is not None and self._break_even_level is not None:
                     self._break_even_level = max(
                         self._break_even_level, self._entry_price
@@ -1671,10 +1727,29 @@ class AutoTradingController:
                     self._norm(sell_activation_price(entry)),
                 )
             if self._break_even_active and self._low_water is not None:
+                trail = await self._effective_trailing_distance()
                 previous_level = self._break_even_level
                 self._break_even_level = next_sell_stop_loss(
-                    previous_level, self._low_water, self._trailing_distance
+                    previous_level, self._low_water, trail
                 )
+                if (
+                    self._last_trail_atr is not None
+                    and self._break_even_level is not None
+                    and (previous_level is None or self._break_even_level != previous_level)
+                ):
+                    logger.info(
+                        "Trailing target updated: SELL ticket=%s ask=%s atr=%s "
+                        "effective_trail=%s desired_sl=%s confirmed_sl=%s "
+                        "in_flight=%s pending=%s",
+                        self._position_ticket,
+                        favourable,
+                        self._last_trail_atr,
+                        trail,
+                        self._break_even_level,
+                        self._current_sl,
+                        self._sl_request_in_flight,
+                        self._pending_sl_target,
+                    )
                 if self._entry_price is not None and self._break_even_level is not None:
                     self._break_even_level = min(
                         self._break_even_level, self._entry_price
@@ -1689,6 +1764,39 @@ class AutoTradingController:
 
         if changed:
             await self._persist_state()
+
+    async def _effective_trailing_distance(self) -> float:
+        cap = float(self._trailing_distance)
+        if self._trailing_mode != "atr":
+            return cap
+        atr = await self._calculate_trail_atr()
+        if atr is not None:
+            self._last_trail_atr = atr
+        return effective_trailing_distance(
+            self._last_trail_atr, self._trail_atr_multiplier, cap
+        )
+
+    async def _calculate_trail_atr(self) -> float | None:
+        try:
+            mt5 = self.connection.mt5
+            symbol = self._resolved_symbol()
+            if not symbol:
+                return None
+            tf = get_timeframe("M1").mt5_value
+            rates = await self.connection.acall(
+                mt5.copy_rates_from_pos, symbol, tf, 0, self._trail_atr_period + 2
+            )
+            return calculate_atr(rates, self._trail_atr_period)
+        except Exception:  # noqa: BLE001 - defensive
+            return None
+
+    def _is_more_protective(self, side: str, target: float, pending: float | None) -> bool:
+        if pending is None:
+            return True
+        tolerance = self._tolerance()
+        if side == SIDE_BUY:
+            return target > pending + tolerance
+        return target < pending - tolerance
 
     def _is_protective_move(self, side: str, target: float) -> bool:
         if self._current_sl is None:
@@ -1718,70 +1826,92 @@ class AutoTradingController:
         if position_ticket is None:
             return False
 
-        mt5 = self.connection.mt5
-        request = {
-            "action": _get_attr(mt5, "TRADE_ACTION_SLTP", 6),
-            "symbol": self._resolved_symbol(),
-            "position": int(position_ticket),
-            "sl": target,
-            "tp": _get_attr(position, "tp", 0.0) or 0.0,
-            "magic": self.settings.auto_trade_magic_number,
-            "comment": _make_comment("AU_M1_T", self._cycle_counter),
-        }
-        if self._last_sl_request_level != target:
+        # Latest-desired-stop handling: never issue concurrent modifications.
+        if self._sl_request_in_flight:
+            if self._is_more_protective(side, target, self._pending_sl_target):
+                self._pending_sl_target = target
+                logger.info(
+                    "Stop request in flight; stored newer target: %s ticket=%s "
+                    "desired=%s pending=%s",
+                    side.upper(),
+                    position_ticket,
+                    target,
+                    self._pending_sl_target,
+                )
+            return False
+
+        self._sl_request_in_flight = True
+        try:
+            mt5 = self.connection.mt5
+            request = {
+                "action": _get_attr(mt5, "TRADE_ACTION_SLTP", 6),
+                "symbol": self._resolved_symbol(),
+                "position": int(position_ticket),
+                "sl": target,
+                "tp": _get_attr(position, "tp", 0.0) or 0.0,
+                "magic": self.settings.auto_trade_magic_number,
+                "comment": _make_comment("AU_M1_T", self._cycle_counter),
+            }
+            if self._last_sl_request_level != target:
+                logger.info(
+                    "Submitting break-even stop move: %s ticket=%s %s -> %s",
+                    side.upper(),
+                    position_ticket,
+                    self._current_sl,
+                    target,
+                )
+                self._last_sl_request_level = target
+
+            try:
+                result = await self.connection.acall(mt5.order_send, request)
+            except Exception as exc:  # noqa: BLE001
+                self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
+                self._note_error(f"Break-even stop move failed: {exc}")
+                return False
+
+            retcode = _get_attr(result, "retcode", None)
+            done = _get_attr(mt5, "TRADE_RETCODE_DONE", 10009)
+            if result is None or retcode != done:
+                comment = _get_attr(result, "comment", None) if result is not None else None
+                self._failed_exits += 1
+                self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
+                self._note_error(
+                    "Break-even stop move rejected: "
+                    f"retcode={retcode} comment={comment or 'no result'}"
+                )
+                return False
+
+            if not await self._confirm_stop_level(position_ticket, side, target):
+                self._failed_exits += 1
+                self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
+                self._note_error(
+                    f"Break-even stop move was not confirmed by MT5 for ticket {position_ticket}"
+                )
+                return False
+
+            old_level = self._current_sl
+            self._current_sl = target
+            self._last_exit_result = (
+                f"{reason}: {side} ticket {position_ticket} stop {old_level} -> {target}"
+            )
+            self._last_sl_request_level = None
+            self._sl_retry_at = 0.0
             logger.info(
-                "Submitting break-even stop move: %s ticket=%s %s -> %s",
+                "Break-even stop moved: %s ticket=%s %s -> %s (%s)",
                 side.upper(),
                 position_ticket,
-                self._current_sl,
+                old_level,
                 target,
+                reason,
             )
-            self._last_sl_request_level = target
-
-        try:
-            result = await self.connection.acall(mt5.order_send, request)
-        except Exception as exc:  # noqa: BLE001
-            self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
-            self._note_error(f"Break-even stop move failed: {exc}")
-            return False
-
-        retcode = _get_attr(result, "retcode", None)
-        done = _get_attr(mt5, "TRADE_RETCODE_DONE", 10009)
-        if result is None or retcode != done:
-            comment = _get_attr(result, "comment", None) if result is not None else None
-            self._failed_exits += 1
-            self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
-            self._note_error(
-                "Break-even stop move rejected: "
-                f"retcode={retcode} comment={comment or 'no result'}"
-            )
-            return False
-
-        if not await self._confirm_stop_level(position_ticket, side, target):
-            self._failed_exits += 1
-            self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
-            self._note_error(
-                f"Break-even stop move was not confirmed by MT5 for ticket {position_ticket}"
-            )
-            return False
-
-        old_level = self._current_sl
-        self._current_sl = target
-        self._last_exit_result = (
-            f"{reason}: {side} ticket {position_ticket} stop {old_level} -> {target}"
-        )
-        self._last_sl_request_level = None
-        self._sl_retry_at = 0.0
-        logger.info(
-            "Break-even stop moved: %s ticket=%s %s -> %s (%s)",
-            side.upper(),
-            position_ticket,
-            old_level,
-            target,
-            reason,
-        )
-        await self._persist_state(force=True)
-        return True
+            await self._persist_state(force=True)
+            return True
+        finally:
+            self._sl_request_in_flight = False
+            pending = self._pending_sl_target
+            self._pending_sl_target = None
+            if pending is not None and self._is_protective_move(side, pending):
+                await self._move_stop(position, side, pending, reason=reason)
 
     async def _confirm_stop_level(self, ticket: int, side: str, target: float) -> bool:
         deadline = self._now() + _CONFIRM_TIMEOUT_SECONDS

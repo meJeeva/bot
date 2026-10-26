@@ -26,6 +26,7 @@ impossible by construction.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 #: Required absolute entry offset for the DEFAULT instrument (XAUUSD).  Do
 #: not reinterpret as a pip/point.  The controller uses the configured
@@ -232,6 +233,50 @@ def next_sell_stop_loss(
     return min(float(previous_stop_loss), candidate)
 
 
+def calculate_atr(rates: Any, period: int = 14) -> float | None:
+    """Simple ATR over completed candles.
+
+    ``rates`` is an iterable of mappings/objects exposing ``high``, ``low``
+    and ``close``. The last candle is assumed to be the forming one and is
+    excluded, so only completed candles contribute.
+    """
+    try:
+        items = list(rates)
+    except Exception:  # noqa: BLE001 - defensive
+        return None
+    if len(items) < period + 1:
+        return None
+
+    def _get(item, name):
+        if isinstance(item, dict):
+            return item.get(name)
+        return getattr(item, name, None)
+
+    completed = items[:-1]
+    if len(completed) < period + 1:
+        return None
+    true_ranges: list[float] = []
+    for i in range(1, len(completed)):
+        high = float(_get(completed[i], "high"))
+        low = float(_get(completed[i], "low"))
+        prev_close = float(_get(completed[i - 1], "close"))
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        true_ranges.append(tr)
+    if len(true_ranges) < period:
+        return None
+    return sum(true_ranges[-period:]) / float(period)
+
+
+def effective_trailing_distance(
+    atr: float | None, multiplier: float, cap: float
+) -> float:
+    """ATR-based trailing distance, capped by the configured maximum."""
+    if atr is None or atr <= 0:
+        return float(cap)
+    raw = float(atr) * float(multiplier)
+    return min(raw, float(cap))
+
+
 __all__ = [
     "PRICE_OFFSET",
     "BREAK_EVEN_OFFSET",
@@ -262,4 +307,6 @@ __all__ = [
     "price_tolerance",
     "sell_activation_price",
     "sell_break_even_level",
+    "calculate_atr",
+    "effective_trailing_distance",
 ]
