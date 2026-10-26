@@ -7,6 +7,7 @@ import { MetricStrip } from '../components/MetricStrip';
 import { StrategyCyclePanel } from '../components/StrategyCyclePanel';
 import { PriceLevelsPanel } from '../components/PriceLevelsPanel';
 import { CycleHistoryPanel } from '../components/CycleHistoryPanel';
+import { TradeHistoryPanel } from '../components/TradeHistoryPanel';
 import { PriceChart, type ChartLevel } from '../components/PriceChart';
 import { PerformancePanel } from '../components/PerformancePanel';
 import { useAutoTradingStatus } from '../hooks/useAutoTradingStatus';
@@ -178,6 +179,7 @@ export function DashboardView({
       </div>
 
       <PerformancePanel />
+      <TradeHistoryPanel />
 
       <footer className="app-footer">
         <p>

@@ -106,6 +106,22 @@ export const api = {
     status: (signal?: AbortSignal) => request<AutoTradingStatus>('/api/auto-trading/status', { signal }),
     history: (signal?: AbortSignal) =>
       request<AutoTradingHistoryResponse>('/api/auto-trading/history', { signal }),
+    tradeHistory: (params: { limit?: number; offset?: number; symbol?: string; direction?: string; cycleId?: string; exitReason?: string; status?: string; start?: string; end?: string } = {}, signal?: AbortSignal) => {
+      const search = new URLSearchParams();
+      if (params.limit) search.set('limit', String(params.limit));
+      if (params.offset) search.set('offset', String(params.offset));
+      if (params.symbol) search.set('symbol', params.symbol);
+      if (params.direction) search.set('direction', params.direction);
+      if (params.cycleId) search.set('cycle_id', params.cycleId);
+      if (params.exitReason) search.set('exit_reason', params.exitReason);
+      if (params.status) search.set('status', params.status);
+      if (params.start) search.set('start', params.start);
+      if (params.end) search.set('end', params.end);
+      const qs = search.toString();
+      return request<{ items: any[]; count: number }>(`/api/auto-trading/trade-history${qs ? `?${qs}` : ''}`, { signal });
+    },
+    tradeEvents: (limit = 200, signal?: AbortSignal) =>
+      request<{ items: any[]; count: number }>(`/api/auto-trading/trade-events?limit=${limit}`, { signal }),
   },
 
   performance: {

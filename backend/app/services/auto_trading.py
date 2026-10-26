@@ -304,6 +304,39 @@ class AutoTradingController:
         self._phase = PHASE_ERROR
         self._stop_requested = True
 
+    async def _record_trade(self, trade: dict[str, Any]) -> None:
+        store = self.store
+        if store is None:
+            return
+        try:
+            await asyncio.to_thread(store.record_trade, trade)
+        except Exception as exc:  # noqa: BLE001 - persistence must not break execution
+            logger.warning("Trade record failed: %s", exc)
+
+    async def _record_trade_event(self, event_type: str, **kwargs: Any) -> None:
+        store = self.store
+        if store is None:
+            return
+        trade_id = kwargs.get("trade_id")
+        event_id = f"{self._current_cycle_id or 'cycle'}:{event_type}:{self._position_ticket or kwargs.get('ticket') or 0}"
+        payload = {
+            "event_id": event_id,
+            "cycle_id": self._current_cycle_id,
+            "trade_id": trade_id,
+            "event_type": event_type,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "broker_timestamp": kwargs.get("broker_timestamp"),
+            "price": kwargs.get("price"),
+            "order_ticket": kwargs.get("order_ticket"),
+            "position_id": kwargs.get("position_id"),
+            "result_code": kwargs.get("result_code"),
+            "details": kwargs.get("details"),
+        }
+        try:
+            await asyncio.to_thread(store.record_trade_event, payload)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Trade event record failed: %s", exc)
+
     def _filling_mode(self, mt5: Any, info: Any) -> int:
         filling_mode = _get_attr(info, "filling_mode", None)
         ioc = _get_attr(mt5, "ORDER_FILLING_IOC", 1)
@@ -1193,6 +1226,26 @@ class AutoTradingController:
             )
             await self._move_stop(position, side, float(initial_sl), reason="initial protection")
 
+        trade_id = f"{self._session_id}-{self._cycle_counter}-{side}"
+        await self._record_trade(
+            {
+                "trade_id": trade_id,
+                "cycle_id": self._current_cycle_id,
+                "symbol": self._resolved_symbol(),
+                "profile": getattr(self.settings, "auto_trade_profile", None),
+                "direction": side.upper(),
+                "position_id": ticket,
+                "status": "open",
+                "entry_filled_at": datetime.now(timezone.utc).isoformat(),
+                "actual_entry_price": self._entry_price,
+                "actual_volume": self._entry_volume,
+                "reference_price": self._reference_value,
+                "initial_sl": initial_sl,
+                "confirmed_initial_sl": self._current_sl,
+            }
+        )
+        await self._record_trade_event("entry_filled", trade_id=trade_id, price=self._entry_price, position_id=ticket)
+
         favourable = self._favourable_price(quote, side) if quote is not None else None
         if side == SIDE_BUY:
             baseline = self._entry_price
@@ -1291,6 +1344,7 @@ class AutoTradingController:
 
         self._cycle_counter += 1
         self._current_cycle_id = f"{self._session_id}-{self._cycle_counter}"
+        await self._record_trade_event("cycle_initialized", price=reference)
         levels = build_cycle_levels(
             reference, self._tick_size, self._digits, self._entry_offset
         )
@@ -1342,6 +1396,7 @@ class AutoTradingController:
         await self._ensure_pending_order(SIDE_BUY, quote)
         await self._ensure_pending_order(SIDE_SELL, quote)
         await self._persist_state(force=True)
+        await self._record_trade_event("switching_completed", price=reference)
 
     async def _handle_waiting_for_entry(self, quote: Any) -> None:
         buy_trigger = False
@@ -1434,6 +1489,7 @@ class AutoTradingController:
             price,
             sl,
         )
+        await self._record_trade_event("entry_submitted", price=price, details=side.upper())
         try:
             result = await self.connection.acall(mt5.order_send, request)
         except Exception as exc:  # noqa: BLE001 - confirm before retrying
@@ -1480,6 +1536,9 @@ class AutoTradingController:
             self._note_error(
                 f"{side.upper()} Stop rejected: retcode={retcode} comment={comment}"
             )
+            await self._record_trade_event(
+                "entry_rejected", price=price, result_code=retcode, details=comment
+            )
             return False
 
         expected_ticket = _get_attr(result, "order", None)
@@ -1508,6 +1567,12 @@ class AutoTradingController:
                 self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket,
                 price,
                 sl,
+            )
+            await self._record_trade_event(
+                "entry_confirmed",
+                price=price,
+                order_ticket=self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket,
+                details=side.upper(),
             )
         else:
             logger.info(
@@ -1565,6 +1630,7 @@ class AutoTradingController:
             self._side_removed[SIDE_BUY] = True
             if self._buy_order_ticket is not None:
                 await self._cancel_pending_order(self._buy_order_ticket, SIDE_BUY, reason=reason)
+        await self._record_trade_event("opposing_order_cancelled", details=reason)
 
     async def _cancel_all_pending(self, *, reason: str) -> None:
         await self._refresh_mt5_state()
@@ -1674,6 +1740,7 @@ class AutoTradingController:
                     entry,
                     self._norm(buy_activation_price(entry)),
                 )
+                await self._record_trade_event("break_even_activated", price=self._break_even_level, position_id=self._position_ticket, details="buy")
             if self._break_even_active and self._high_water is not None:
                 trail = await self._effective_trailing_distance()
                 previous_level = self._break_even_level
@@ -1726,6 +1793,7 @@ class AutoTradingController:
                     entry,
                     self._norm(sell_activation_price(entry)),
                 )
+                await self._record_trade_event("break_even_activated", price=self._break_even_level, position_id=self._position_ticket, details="sell")
             if self._break_even_active and self._low_water is not None:
                 trail = await self._effective_trailing_distance()
                 previous_level = self._break_even_level
@@ -1905,6 +1973,9 @@ class AutoTradingController:
                 reason,
             )
             await self._persist_state(force=True)
+            await self._record_trade_event(
+                "sl_modified", price=target, position_id=position_ticket, result_code=0, details=reason
+            )
             return True
         finally:
             self._sl_request_in_flight = False
@@ -2049,6 +2120,27 @@ class AutoTradingController:
             profit,
         )
 
+        trade_id = f"{self._session_id}-{self._cycle_counter}-{side}" if side else None
+        await self._record_trade(
+            {
+                "trade_id": trade_id,
+                "cycle_id": cycle_id,
+                "symbol": self._resolved_symbol(),
+                "profile": getattr(self.settings, "auto_trade_profile", None),
+                "direction": (side or "").upper(),
+                "position_id": ticket,
+                "status": "closed",
+                "exit_filled_at": datetime.now(timezone.utc).isoformat(),
+                "actual_exit_price": exit_price,
+                "gross_profit": profit,
+                "strategy_exit_class": "stop_loss",
+                "final_sl_before_exit": self._current_sl,
+            }
+        )
+        await self._record_trade_event(
+            "exit_confirmed", trade_id=trade_id, price=exit_price, position_id=ticket, details=f"deal={deal_id}"
+        )
+
         self._clear_active_position()
         self._phase = PHASE_SWITCHING
         self._previous_cycle_complete = True
@@ -2057,6 +2149,7 @@ class AutoTradingController:
         # Clean up whatever remains of the completed cycle. Only pending
         # orders are touched, never another position's stop-loss.
         await self._cancel_all_pending(reason="cycle completed")
+        await self._record_trade_event("switching_started", price=exit_price, position_id=ticket, details=str(deal_id))
         await self._persist_state(force=True)
 
     def _clear_active_position(self) -> None:

@@ -58,6 +58,82 @@ CREATE TABLE IF NOT EXISTS auto_trading_state (
     state_json  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS trade_cycles (
+    cycle_id        TEXT PRIMARY KEY,
+    symbol          TEXT,
+    profile         TEXT,
+    reference_price REAL,
+    status          TEXT,
+    started_at      TEXT,
+    completed_at    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS trades (
+    trade_id                TEXT PRIMARY KEY,
+    cycle_id                TEXT,
+    previous_trade_id       TEXT,
+    symbol                  TEXT,
+    profile                 TEXT,
+    direction               TEXT,
+    order_ticket            INTEGER,
+    position_id             INTEGER,
+    entry_deal_id           INTEGER,
+    exit_deal_id            INTEGER,
+    status                  TEXT,
+    entry_submitted_at      TEXT,
+    entry_accepted_at       TEXT,
+    entry_filled_at         TEXT,
+    requested_entry_price   REAL,
+    actual_entry_price      REAL,
+    configured_lot_size     REAL,
+    actual_volume           REAL,
+    reference_price         REAL,
+    initial_sl              REAL,
+    confirmed_initial_sl    REAL,
+    spread_at_entry         REAL,
+    atr_at_entry            REAL,
+    be_activation_distance  REAL,
+    be_activation_threshold REAL,
+    be_activated_at         TEXT,
+    trail_distance          REAL,
+    trail_cap               REAL,
+    exit_requested_at       TEXT,
+    exit_filled_at          TEXT,
+    actual_exit_price       REAL,
+    actual_exit_volume      REAL,
+    exit_reason             TEXT,
+    strategy_exit_class     TEXT,
+    final_sl_before_exit    REAL,
+    gross_profit            REAL,
+    commission              REAL,
+    swap                    REAL,
+    net_profit              REAL,
+    duration_seconds        REAL,
+    mt5_result_code         INTEGER,
+    request_latency_ms      REAL,
+    created_at              TEXT,
+    updated_at              TEXT,
+    UNIQUE(order_ticket, position_id)
+);
+
+CREATE TABLE IF NOT EXISTS trade_events (
+    event_id        TEXT PRIMARY KEY,
+    cycle_id        TEXT,
+    trade_id        TEXT,
+    event_type      TEXT NOT NULL,
+    timestamp       TEXT NOT NULL,
+    broker_timestamp TEXT,
+    price           REAL,
+    order_ticket    INTEGER,
+    position_id     INTEGER,
+    result_code     INTEGER,
+    details         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_trades_cycle ON trades(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_trade_events_cycle ON trade_events(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_trade_events_trade ON trade_events(trade_id);
 """
 
 
@@ -95,6 +171,15 @@ class StatusStore:
             )
             connection.execute("PRAGMA journal_mode=WAL;")
             connection.executescript(_SCHEMA)
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
+            )
+            row = connection.execute("SELECT MAX(version) FROM schema_version").fetchone()
+            if row is None or row[0] is None:
+                connection.execute(
+                    "INSERT INTO schema_version (version, applied_at) VALUES (1, ?)",
+                    (datetime.now(timezone.utc).isoformat(),),
+                )
             connection.commit()
             with self._lock:
                 self._connection = connection
@@ -275,6 +360,118 @@ class StatusStore:
         except (json.JSONDecodeError, TypeError):
             return None
         return value if isinstance(value, dict) else None
+
+    def record_trade(self, trade: dict[str, Any]) -> bool:
+        if not isinstance(trade, dict):
+            return False
+        trade_id = trade.get("trade_id")
+        if not trade_id:
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        columns = [
+            "trade_id", "cycle_id", "previous_trade_id", "symbol", "profile", "direction",
+            "order_ticket", "position_id", "entry_deal_id", "exit_deal_id", "status",
+            "entry_submitted_at", "entry_accepted_at", "entry_filled_at",
+            "requested_entry_price", "actual_entry_price", "configured_lot_size", "actual_volume",
+            "reference_price", "initial_sl", "confirmed_initial_sl", "spread_at_entry",
+            "atr_at_entry", "be_activation_distance", "be_activation_threshold", "be_activated_at",
+            "trail_distance", "trail_cap", "exit_requested_at", "exit_filled_at", "actual_exit_price",
+            "actual_exit_volume", "exit_reason", "strategy_exit_class", "final_sl_before_exit",
+            "gross_profit", "commission", "swap", "net_profit", "duration_seconds",
+            "mt5_result_code", "request_latency_ms", "created_at", "updated_at",
+        ]
+        values = [trade.get(c) for c in columns[:-1]] + [now]
+        # created_at handling
+        if trade.get("created_at"):
+            values[columns.index("created_at")] = trade.get("created_at")
+        placeholders = ", ".join("?" for _ in columns)
+        sql = f"INSERT INTO trades ({', '.join(columns)}) VALUES ({placeholders}) " \
+              "ON CONFLICT(trade_id) DO UPDATE SET " + ", ".join(
+                  f"{c}=excluded.{c}" for c in columns if c not in ("trade_id", "created_at")
+              )
+        cursor = self._execute(sql, tuple(values))
+        return cursor is not None
+
+    def upsert_trade(self, trade: dict[str, Any]) -> bool:
+        return self.record_trade(trade)
+
+    def record_trade_event(self, event: dict[str, Any]) -> bool:
+        if not isinstance(event, dict):
+            return False
+        event_id = event.get("event_id")
+        if not event_id:
+            return False
+        columns = [
+            "event_id", "cycle_id", "trade_id", "event_type", "timestamp",
+            "broker_timestamp", "price", "order_ticket", "position_id", "result_code", "details",
+        ]
+        values = [event.get(c) for c in columns]
+        placeholders = ", ".join("?" for _ in columns)
+        sql = f"INSERT INTO trade_events ({', '.join(columns)}) VALUES ({placeholders}) " \
+              "ON CONFLICT(event_id) DO NOTHING"
+        cursor = self._execute(sql, tuple(values))
+        return cursor is not None
+
+    def recent_trades(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        symbol: str | None = None,
+        direction: str | None = None,
+        cycle_id: str | None = None,
+        exit_reason: str | None = None,
+        status: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> list[dict[str, Any]]:
+        with self._lock:
+            if self._connection is None:
+                return []
+            try:
+                clauses = []
+                params: list[Any] = []
+                if symbol:
+                    clauses.append("symbol = ?")
+                    params.append(symbol)
+                if direction:
+                    clauses.append("direction = ?")
+                    params.append(direction.upper())
+                if cycle_id:
+                    clauses.append("cycle_id = ?")
+                    params.append(cycle_id)
+                if exit_reason:
+                    clauses.append("exit_reason = ?")
+                    params.append(exit_reason)
+                if status:
+                    clauses.append("status = ?")
+                    params.append(status)
+                if start:
+                    clauses.append("created_at >= ?")
+                    params.append(start)
+                if end:
+                    clauses.append("created_at <= ?")
+                    params.append(end)
+                where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+                sql = f"SELECT * FROM trades{where} ORDER BY rowid DESC LIMIT ? OFFSET ?"
+                params.extend([int(limit), int(offset)])
+                rows = self._connection.execute(sql, tuple(params)).fetchall()
+                cols = [d[0] for d in self._connection.execute("SELECT * FROM trades LIMIT 1").description]
+            except sqlite3.Error:
+                return []
+        return [dict(zip(cols, row)) for row in rows]
+
+    def recent_trade_events(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self._lock:
+            if self._connection is None:
+                return []
+            try:
+                rows = self._connection.execute(
+                    "SELECT * FROM trade_events ORDER BY rowid DESC LIMIT ?", (int(limit),)
+                ).fetchall()
+                cols = [d[0] for d in self._connection.execute("SELECT * FROM trade_events LIMIT 1").description]
+            except sqlite3.Error:
+                return []
+        return [dict(zip(cols, row)) for row in rows]
 
     def counts(self) -> tuple[int, int]:
         with self._lock:
