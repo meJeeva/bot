@@ -142,8 +142,8 @@ class TestBtcusdConfiguration:
         assert settings.mt5_symbol == "XAUUSD"
         # The effective instrument is mirrored into auto_trade_symbol.
         assert settings.auto_trade_symbol == "XAUUSD"
-        # No BTCUSD-style requirement is imposed on the default profile.
-        assert settings.auto_trade_entry_offset is None
+        # XAUUSD keeps its established default entry offset.
+        assert settings.auto_trade_entry_offset == 1.0
 
     def test_timeframe_is_locked_to_m1(self):
         with pytest.raises(ValidationError) as excinfo:

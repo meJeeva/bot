@@ -80,6 +80,11 @@ def create_app(
     """
     settings = settings or get_settings()
     setup_logging(settings.log_level, settings.log_format)
+    logger.info(
+        "Loaded configuration: profile=%s, lot_size=%s (credentials not logged)",
+        getattr(settings, "auto_trade_profile", None),
+        getattr(settings, "auto_trade_lot_size", None),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
