@@ -14,7 +14,13 @@ interface StrategyCyclePanelProps {
  * The authoritative source is `strategy_phase` from the backend response; the
  * stepper never invents a transition the backend did not report. Phases this
  * build of the backend does not define are rendered verbatim as "unknown".
+ *
+ * `ERROR` and `SPREAD_BLOCKED` are not cycle transitions: they are shown as
+ * their own status with the backend's reason, never mapped onto a step.
  */
+
+const ERROR_PHASE = 'ERROR';
+const SPREAD_BLOCKED_PHASE = 'SPREAD_BLOCKED';
 
 interface PhaseStep {
   /** Backend phase values that map to this step. */
@@ -58,11 +64,23 @@ function activeStepIndex(phase: string | null | undefined): number {
   return STEPS.findIndex((step) => step.phases.includes(phase));
 }
 
+function formatPoints(value: number | null | undefined): string | null {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value}` : null;
+}
+
 export function StrategyCyclePanel({ status }: StrategyCyclePanelProps) {
   const phase = status?.strategy_phase ?? null;
   const stepIndex = activeStepIndex(phase);
   const knownPhase = phase !== null && stepIndex !== -1;
   const activeStep = stepIndex >= 0 ? STEPS[stepIndex] : null;
+  const isError = phase === ERROR_PHASE;
+  // The backend may hold entries while an already-armed cycle keeps its own
+  // phase, so the flag is checked as well as the dedicated phase.
+  const spreadBlocked = phase === SPREAD_BLOCKED_PHASE || status?.spread_blocked === true;
+  const spreadPoints = formatPoints(status?.spread_points);
+  const maxSpreadPoints = formatPoints(status?.max_spread_points);
+  const reason = status?.last_error ?? null;
+  const isStatusPhase = isError || phase === SPREAD_BLOCKED_PHASE;
   const positionOpen = (status?.position_ticket ?? null) !== null;
   const pendingSides = [
     status?.buy_order_ticket != null ? 'buy' : null,
@@ -74,13 +92,38 @@ export function StrategyCyclePanel({ status }: StrategyCyclePanelProps) {
       <header className="card-header">
         <h2 id="cycle-heading">Strategy cycle</h2>
         <Pill
-          tone={phase === 'ERROR' ? 'negative' : knownPhase ? 'accent' : 'neutral'}
+          tone={isError ? 'negative' : spreadBlocked ? 'warning' : knownPhase ? 'accent' : 'neutral'}
           testId="cycle-phase-pill"
           title="Verbatim strategy phase reported by the backend"
         >
           {phase ?? 'unknown'}
         </Pill>
       </header>
+
+      {spreadBlocked ? (
+        <p className="alert alert-warning" data-testid="cycle-spread-blocked">
+          <strong>Entries blocked by spread.</strong>{' '}
+          <span data-testid="cycle-spread-blocked-reason">
+            {reason ?? 'Spread exceeds maximum.'}
+          </span>
+          {spreadPoints !== null && maxSpreadPoints !== null ? (
+            <span data-testid="cycle-spread-comparison">
+              {' '}
+              Measured {spreadPoints} points against a configured maximum of{' '}
+              {maxSpreadPoints} points.
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+
+      {isError ? (
+        <p className="alert alert-error" data-testid="cycle-phase-error">
+          <strong>Strategy error.</strong>{' '}
+          <span data-testid="cycle-error-reason">
+            {reason ?? 'The backend did not report a reason.'}
+          </span>
+        </p>
+      ) : null}
 
       <ol className="stepper" data-testid="cycle-stepper">
         {STEPS.map((step, index) => {
@@ -103,7 +146,7 @@ export function StrategyCyclePanel({ status }: StrategyCyclePanelProps) {
         })}
       </ol>
 
-      {!knownPhase && phase !== null ? (
+      {!knownPhase && phase !== null && !isStatusPhase ? (
         <p className="alert alert-warning" data-testid="cycle-phase-unknown">
           The backend reported strategy phase <code>{phase}</code>, which this dashboard does not
           map to a cycle step. Showing the raw value rather than guessing a transition.

@@ -50,6 +50,80 @@ describe('StrategyCyclePanel', () => {
     expect(screen.getByTestId('cycle-phase-pill')).toHaveTextContent('ERROR');
   });
 
+  it('shows a genuine ERROR with the backend reason, not an unmapped-phase guess', () => {
+    render(
+      <StrategyCyclePanel
+        status={makeAutoTradingStatus({
+          status: 'ERROR',
+          strategy_phase: 'ERROR',
+          last_error: 'SELL Stop rejected: retcode=10016 comment=invalid stops',
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('cycle-phase-error')).toBeInTheDocument();
+    expect(screen.getByTestId('cycle-error-reason')).toHaveTextContent(
+      'SELL Stop rejected: retcode=10016 comment=invalid stops',
+    );
+    // A fatal state is reported as itself, never as an unknown cycle step.
+    expect(screen.queryByTestId('cycle-phase-unknown')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cycle-step-removing')).not.toHaveClass('step-active');
+  });
+
+  it('shows the spread-blocked state with the measured and configured points', () => {
+    render(
+      <StrategyCyclePanel
+        status={makeAutoTradingStatus({
+          strategy_phase: 'SPREAD_BLOCKED',
+          profile: 'BTCUSD',
+          symbol: 'BTCUSD.m',
+          spread_blocked: true,
+          spread_points: 858,
+          max_spread_points: 100,
+          last_error: 'Spread exceeds maximum: 858 points > 100 configured',
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('cycle-phase-pill')).toHaveTextContent('SPREAD_BLOCKED');
+    expect(screen.getByTestId('cycle-spread-blocked')).toBeInTheDocument();
+    expect(screen.getByTestId('cycle-spread-blocked-reason')).toHaveTextContent(
+      '858 points > 100 configured',
+    );
+    expect(screen.getByTestId('cycle-spread-comparison')).toHaveTextContent(
+      'Measured 858 points against a configured maximum of 100 points.',
+    );
+    // Blocked entries are not an error and not an unmapped phase.
+    expect(screen.queryByTestId('cycle-phase-error')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cycle-phase-unknown')).not.toBeInTheDocument();
+    expect(screen.getByTestId('cycle-phase-pill')).toHaveClass('pill-warning');
+  });
+
+  it('reports blocked entries even while an armed cycle keeps its own phase', () => {
+    render(
+      <StrategyCyclePanel
+        status={makeAutoTradingStatus({
+          strategy_phase: 'WAITING_ENTRY',
+          spread_blocked: true,
+          spread_points: 1200,
+          max_spread_points: 100,
+          last_error: 'Spread exceeds maximum: 1200 points > 100 configured',
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('cycle-step-value')).toHaveClass('step-active');
+    expect(screen.getByTestId('cycle-spread-blocked')).toBeInTheDocument();
+  });
+
+  it('does not show an error or blocked notice for a normal cycle step', () => {
+    render(<StrategyCyclePanel status={makeAutoTradingStatus()} />);
+
+    expect(screen.queryByTestId('cycle-phase-error')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cycle-spread-blocked')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cycle-phase-unknown')).not.toBeInTheDocument();
+  });
+
   it('shows the cycle context values the backend supplies', () => {
     render(
       <StrategyCyclePanel

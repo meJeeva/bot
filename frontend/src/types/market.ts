@@ -385,6 +385,13 @@ export interface AutoTradingStatus {
   magic_number: number | null;
 
   strategy_phase?: string | null;
+  /** Active instrument profile (`XAUUSD` / `BTCUSD`) the backend resolved. */
+  profile?: string | null;
+  /** True while the live spread is above the configured maximum. */
+  spread_blocked?: boolean;
+  /** Last measured spread in points, and the configured limit, same unit. */
+  spread_points?: number | null;
+  max_spread_points?: number | null;
   active_side?: string | null;
   reference_value?: number | null;
   buy_entry?: number | null;

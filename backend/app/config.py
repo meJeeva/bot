@@ -184,7 +184,7 @@ class Settings(BaseSettings):
     auto_trade_demo_authorized: bool = Field(default=False, description="Explicit operator acknowledgment that order placement is authorized on a demo account")
 
     # --- Instrument profile selection ---
-    auto_trade_profile: str = Field(default="XAUUSD", description="Active instrument profile: XAUUSD or BTCUSD")
+    auto_trade_profile: str = Field(default="XAUUSD", validation_alias=AliasChoices("AUTO_TRADE_PROFILE", "auto_trade_profile"), description="Active instrument profile: XAUUSD or BTCUSD")
 
     # --- XAUUSD profile ---
     xauusd_symbol: Optional[str] = Field(default=None, validation_alias="XAUUSD_MT5_SYMBOL")
@@ -532,10 +532,15 @@ class Settings(BaseSettings):
         if self.mt5_password is not None and self.mt5_server is None:
             raise ValueError("MT5_SERVER is required when MT5_PASSWORD is set")
 
-        if self.auto_trade_symbol is None and self.mt5_symbol:
-            self.auto_trade_symbol = self.mt5_symbol
+        # Snapshot the fields the operator actually supplied (environment,
+        # .env or constructor keywords) before this validator rewrites any of
+        # them. Model defaults - notably MT5_SYMBOL's historical "XAUUSD" -
+        # are not operator intent and must never be reported as a conflict.
+        explicit_fields = frozenset(self.model_fields_set)
 
-        # Instrument profile resolution
+        # Instrument profile resolution. AUTO_TRADE_PROFILE is the source of
+        # truth for the active instrument; the legacy MT5_SYMBOL and
+        # AUTO_TRADE_SYMBOL settings only take part when explicitly supplied.
         profile = (self.auto_trade_profile or "").strip().upper()
         if profile not in _PROFILE_DEFAULTS:
             raise ValueError(f"AUTO_TRADE_PROFILE must be one of {sorted(_PROFILE_DEFAULTS)}; received {self.auto_trade_profile!r}")
@@ -544,9 +549,9 @@ class Settings(BaseSettings):
 
         instrument = str(getattr(self, f"{prefix}_symbol") or defaults["symbol"])
         provided_symbols = []
-        if "mt5_symbol" in self.model_fields_set and self.mt5_symbol:
+        if "mt5_symbol" in explicit_fields and self.mt5_symbol:
             provided_symbols.append(("MT5_SYMBOL", str(self.mt5_symbol)))
-        if "auto_trade_symbol" in self.model_fields_set and self.auto_trade_symbol:
+        if "auto_trade_symbol" in explicit_fields and self.auto_trade_symbol:
             provided_symbols.append(("AUTO_TRADE_SYMBOL", str(self.auto_trade_symbol)))
         prefixed_symbol = getattr(self, f"{prefix}_symbol")
         if prefixed_symbol:
@@ -575,7 +580,7 @@ class Settings(BaseSettings):
         for name, legacy_field in _LEGACY_PARAM_FIELDS.items():
             prefixed = getattr(self, f"{prefix}_{name}")
             legacy_value = getattr(self, legacy_field)
-            legacy_set = legacy_field in self.model_fields_set
+            legacy_set = legacy_field in explicit_fields
             if prefixed is not None:
                 if legacy_set and legacy_value is not None and not _same_param(name, legacy_value, prefixed):
                     raise ValueError(
@@ -649,7 +654,7 @@ class Settings(BaseSettings):
                 ("AUTO_TRADE_TRAILING_DISTANCE", "auto_trade_trailing_distance"),
                 ("AUTO_TRADE_LOT_SIZE", "auto_trade_lot_size"),
             )
-            missing = [env for env, field in required_fields if field not in self.model_fields_set and getattr(self, field) is None]
+            missing = [env for env, field in required_fields if field not in explicit_fields and getattr(self, field) is None]
             # Already validated above; keep as guard.
             if missing and profile != "BTCUSD":
                 raise ValueError("The BTCUSD profile requires explicitly configured values; missing: " + ", ".join(missing))

@@ -55,6 +55,13 @@ class AutoTradingStatus(BaseModel):
     magic_number: int | None = None
 
     strategy_phase: str | None = None
+    profile: str | None = None
+    # Spread gate: `spread_blocked` is True while the live spread is above the
+    # configured maximum. `strategy_phase == "SPREAD_BLOCKED"` means entries are
+    # actually being withheld; an open position keeps its own phase.
+    spread_blocked: bool = False
+    spread_points: float | None = None
+    max_spread_points: float | None = None
     active_side: str | None = None
     reference_value: float | None = None
     buy_entry: float | None = None

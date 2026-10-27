@@ -28,14 +28,17 @@ are submitted.
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ..config import Settings
 from ..logging_config import get_logger
 from ..mt5.connection import MT5Connection, describe_mt5_error
+from ..mt5.market_data import compute_spread
 from ..schemas.auto_trading import (
     AutoTradingHistoryItem,
     AutoTradingHistoryResponse,
@@ -85,10 +88,18 @@ PHASE_WAITING_ENTRY = "WAITING_ENTRY"
 PHASE_BUY_OPEN = "BUY_OPEN"
 PHASE_SELL_OPEN = "SELL_OPEN"
 PHASE_SWITCHING = "SWITCHING"
+# The strategy is healthy but is withholding entries because the live spread
+# exceeds the configured maximum. This is not an execution failure: the loop
+# keeps running and arms the cycle as soon as the spread returns within range.
+PHASE_SPREAD_BLOCKED = "SPREAD_BLOCKED"
 PHASE_ERROR = "ERROR"
 
 SIDE_BUY = "buy"
 SIDE_SELL = "sell"
+
+SPREAD_OK = "ok"
+SPREAD_BLOCKED = "blocked"
+SPREAD_UNAVAILABLE = "unavailable"
 
 
 def _utcnow() -> datetime:
@@ -106,6 +117,97 @@ def _get_attr(obj: Any, name: str, default: Any = None) -> Any:
         return getattr(obj, name)
     except Exception:  # noqa: BLE001 - third-party result objects
         return default
+
+
+def _format_number(value: float | None) -> str:
+    if value is None:
+        return "unavailable"
+    try:
+        return f"{float(value):g}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _format_price(value: float | None) -> str:
+    """Prices keep their reported precision (no 6-significant-digit cut)."""
+    if value is None:
+        return "unavailable"
+    try:
+        return repr(float(value))
+    except (TypeError, ValueError):
+        return str(value)
+
+
+@dataclass(frozen=True)
+class SpreadCheck:
+    """One spread measurement together with the limit it was compared with.
+
+    ``spread_points`` is always ``(ask - bid) / SYMBOL_POINT`` - the same unit
+    as ``auto_trade_max_spread_points`` - never the raw price difference, so a
+    price difference can never be compared with a points-based limit.
+    """
+
+    outcome: str
+    symbol: str | None
+    profile: str | None
+    limit: float | None
+    bid: float | None = None
+    ask: float | None = None
+    spread_price: float | None = None
+    spread_points: float | None = None
+    point: float | None = None
+    digits: int | None = None
+    detail: str | None = None
+
+    @property
+    def blocked(self) -> bool:
+        return self.outcome == SPREAD_BLOCKED
+
+    @property
+    def unavailable(self) -> bool:
+        return self.outcome == SPREAD_UNAVAILABLE
+
+    def describe(self) -> str:
+        """Every measured value on one line (no credentials involved)."""
+        if self.unavailable:
+            return (
+                f"spread unavailable ({self.detail}) | symbol={self.symbol} "
+                f"profile={self.profile} bid={_format_price(self.bid)} "
+                f"ask={_format_price(self.ask)} "
+                f"SYMBOL_POINT={self.point} digits={self.digits} "
+                f"max={_format_number(self.limit)} points"
+            )
+        return (
+            f"spread={_format_number(self.spread_points)} points "
+            f"({_format_price(self.spread_price)} price units) | "
+            f"max={_format_number(self.limit)} points | "
+            f"symbol={self.symbol} profile={self.profile} "
+            f"bid={_format_price(self.bid)} ask={_format_price(self.ask)} "
+            f"SYMBOL_POINT={self.point} digits={self.digits} | "
+            f"blocked={'yes' if self.blocked else 'no'}"
+        )
+
+    def reason(self) -> str:
+        """The precise message reported through ``last_error``."""
+        if self.unavailable:
+            return f"Spread cannot be verified: {self.detail}"
+        if self.blocked:
+            # Bid/ask are deliberately left out of the reported reason: they
+            # change on every tick, and the full values stay in the log line
+            # produced by `describe()`.
+            return (
+                "Spread exceeds maximum: "
+                f"{_format_number(self.spread_points)} points > "
+                f"{_format_number(self.limit)} configured "
+                f"(symbol={self.symbol}, profile={self.profile}, "
+                f"spread={_format_number(self.spread_price)} price units, "
+                f"point={self.point}, digits={self.digits})"
+            )
+        return (
+            "Spread within maximum: "
+            f"{_format_number(self.spread_points)} points <= "
+            f"{_format_number(self.limit)} configured"
+        )
 
 
 def _is_strategy_symbol(symbol: str | None, base: str | None) -> bool:
@@ -266,6 +368,13 @@ class AutoTradingController:
         self._last_persist_at = 0.0
         self._last_connectivity_log: str | None = None
 
+        # Spread gate. The measured spread decides whether a new entry may be
+        # armed; it never changes the strategy distances or the risk controls.
+        self._spread_blocked = False
+        self._last_spread_check: SpreadCheck | None = None
+        self._spread_log_state: str | None = None
+        self._phase_before_spread_block: str | None = None
+
     # ------------------------------------------------------------------
     # Small utilities
     # ------------------------------------------------------------------
@@ -292,6 +401,202 @@ class AutoTradingController:
     def _tolerance(self) -> float:
         return price_tolerance(self._tick_size, self._digits)
 
+    # ------------------------------------------------------------------
+    # Spread gate
+    # ------------------------------------------------------------------
+    def _measure_spread(self, quote: Any) -> SpreadCheck:
+        """Measure the live spread in points and compare it with the limit.
+
+        Missing quotes and invalid spread inputs are reported as
+        ``unavailable`` - they are never mistaken for a genuine high spread.
+        """
+        symbol = self._resolved_symbol() or self._strategy_symbol
+        profile = getattr(self.settings, "auto_trade_profile", None)
+        limit = getattr(self.settings, "auto_trade_max_spread_points", None)
+
+        def unavailable(detail: str) -> SpreadCheck:
+            try:
+                limit_value = float(limit) if limit is not None else None
+            except (TypeError, ValueError):
+                limit_value = None
+            return SpreadCheck(
+                outcome=SPREAD_UNAVAILABLE,
+                symbol=symbol,
+                profile=profile,
+                limit=limit_value,
+                detail=detail,
+            )
+
+        if quote is None:
+            return unavailable("no quote is available")
+
+        bid = _get_attr(quote, "bid", None)
+        ask = _get_attr(quote, "ask", None)
+        if bid is None or ask is None:
+            return unavailable(f"bid/ask are incomplete (bid={bid!r}, ask={ask!r})")
+        try:
+            bid_value = float(bid)
+            ask_value = float(ask)
+        except (TypeError, ValueError):
+            return unavailable(f"bid/ask are not numeric (bid={bid!r}, ask={ask!r})")
+        if bid_value <= 0 or ask_value <= 0:
+            return unavailable(f"bid/ask are not positive (bid={bid!r}, ask={ask!r})")
+        if ask_value < bid_value:
+            return unavailable(f"ask is below bid (bid={bid!r}, ask={ask!r})")
+
+        point = _get_attr(quote, "point", None)
+        if point is None:
+            point = self._tick_size or _get_attr(quote, "tick_size", None)
+        try:
+            point_value = float(point) if point is not None else None
+        except (TypeError, ValueError):
+            point_value = None
+        if (
+            point_value is None
+            or not math.isfinite(point_value)
+            or point_value <= 0
+        ):
+            return unavailable(f"symbol point size is invalid (SYMBOL_POINT={point!r})")
+
+        try:
+            spread_price, spread_points = compute_spread(
+                bid_value, ask_value, point_value
+            )
+        except Exception as exc:  # noqa: BLE001 - reported, never guessed
+            return unavailable(f"spread could not be computed: {exc}")
+        if not math.isfinite(spread_points) or spread_points < 0:
+            return unavailable(f"calculated spread is invalid ({spread_points!r} points)")
+
+        digits = _get_attr(quote, "digits", None)
+        if digits is None:
+            digits = self._digits
+
+        # Cross-check the quote's own figure. A mismatch means one of the two
+        # sides used a different unit; the recomputed points are authoritative.
+        reported = _get_attr(quote, "spread_points", None)
+        if reported is not None:
+            try:
+                if abs(float(reported) - spread_points) > max(1.0, spread_points * 1e-6):
+                    logger.warning(
+                        "Spread unit mismatch for %s: quote reports %s points but "
+                        "(ask-bid)/SYMBOL_POINT gives %s points (point=%s); "
+                        "using the recomputed value",
+                        symbol,
+                        reported,
+                        spread_points,
+                        point_value,
+                    )
+            except (TypeError, ValueError):
+                pass
+
+        if limit is None:
+            return unavailable("the configured maximum spread is unavailable")
+        try:
+            limit_value = float(limit)
+        except (TypeError, ValueError):
+            return unavailable(f"the configured maximum spread is invalid ({limit!r})")
+        if not math.isfinite(limit_value) or limit_value < 0:
+            return unavailable(
+                f"the configured maximum spread is invalid ({limit!r})"
+            )
+
+        return SpreadCheck(
+            outcome=SPREAD_BLOCKED if spread_points > limit_value else SPREAD_OK,
+            symbol=symbol,
+            profile=profile,
+            limit=limit_value,
+            bid=bid_value,
+            ask=ask_value,
+            spread_price=spread_price,
+            spread_points=spread_points,
+            point=point_value,
+            digits=int(digits) if digits is not None else None,
+        )
+
+    def _evaluate_spread(self, quote: Any, *, context: str) -> SpreadCheck:
+        """Measure the spread and log the full comparison when it changes."""
+        check = self._measure_spread(quote)
+        self._last_spread_check = check
+        self._spread_blocked = check.blocked
+        if check.outcome != self._spread_log_state:
+            if check.blocked:
+                logger.warning(
+                    "Spread gate withheld entry (%s): %s", context, check.describe()
+                )
+            elif check.unavailable:
+                logger.warning(
+                    "Spread gate cannot verify the spread (%s): %s",
+                    context,
+                    check.describe(),
+                )
+            else:
+                logger.info(
+                    "Spread gate allows entry (%s): %s", context, check.describe()
+                )
+            self._spread_log_state = check.outcome
+        else:
+            logger.debug("Spread gate (%s): %s", context, check.describe())
+        return check
+
+    async def _gate_cycle_entry(self, quote: Any) -> bool:
+        """Whether the spread gate currently prevents arming a new cycle.
+
+        Returns ``True`` when the caller must skip cycle initialisation for this
+        step. A resumed gate leaves the phase ready for the normal flow in the
+        same step, so no cycle reference is reset and nothing is duplicated.
+        """
+        if self._active_side is not None:
+            return False
+        spread = self._evaluate_spread(quote, context="entry arming")
+        if self._phase not in (
+            PHASE_INITIALIZING,
+            PHASE_SWITCHING,
+            PHASE_SPREAD_BLOCKED,
+        ):
+            return False
+        if spread.unavailable:
+            self._note_error(spread.reason())
+            return True
+        if spread.blocked:
+            await self._block_initialisation(spread)
+            return True
+        if self._phase == PHASE_SPREAD_BLOCKED:
+            self._resume_from_spread_block(spread)
+        return False
+
+    async def _block_initialisation(self, check: SpreadCheck) -> None:
+        """Hold a new cycle without creating (or resetting) a cycle reference."""
+        if self._phase == PHASE_SPREAD_BLOCKED:
+            # Already blocked: refresh the reported measurement without logging
+            # a new error on every tick. `_evaluate_spread` owns the logging.
+            self._last_error = check.reason()
+            return
+        self._note_error(check.reason())
+        self._phase_before_spread_block = self._phase
+        self._phase = PHASE_SPREAD_BLOCKED
+        logger.warning(
+            "Entry withheld until the spread returns within the configured "
+            "maximum (phase before block: %s): %s",
+            self._phase_before_spread_block,
+            check.describe(),
+        )
+        await self._persist_state(force=True)
+
+    def _resume_from_spread_block(self, check: SpreadCheck) -> None:
+        previous = self._phase_before_spread_block
+        self._phase_before_spread_block = None
+        self._phase = (
+            previous
+            if previous and previous != PHASE_SPREAD_BLOCKED
+            else PHASE_INITIALIZING
+        )
+        self._clear_spread_error()
+        logger.info(
+            "Spread returned within the configured maximum; resuming %s: %s",
+            self._phase,
+            check.describe(),
+        )
+
     def _note_error(self, message: str) -> None:
         """Record an error, logging only when the message changes."""
         if message != self._last_error:
@@ -303,6 +608,11 @@ class AutoTradingController:
         self._status = "ERROR"
         self._phase = PHASE_ERROR
         self._stop_requested = True
+
+    def _clear_spread_error(self) -> None:
+        """Drop only the spread-blocked message once the spread is acceptable."""
+        if self._last_error and self._last_error.startswith("Spread exceeds maximum"):
+            self._last_error = None
 
     async def _record_trade(self, trade: dict[str, Any]) -> None:
         store = self.store
@@ -366,6 +676,11 @@ class AutoTradingController:
             self._status = "STARTING"
             self._phase = PHASE_INITIALIZING
             self._last_error = None
+            # Each session measures (and logs) the spread from scratch.
+            self._spread_blocked = False
+            self._last_spread_check = None
+            self._spread_log_state = None
+            self._phase_before_spread_block = None
             self._session_completed_cycles = 0
             self._session_id = str(uuid.uuid4())
             self._closed_since = None
@@ -379,6 +694,12 @@ class AutoTradingController:
                 self._last_error = str(exc)
                 logger.error("Auto-trading preflight failed: %s", exc)
                 return await self._build_status_unlocked()
+
+            # Report the spread-blocked state straight away instead of waiting
+            # for the first scheduler tick; the loop re-checks it every step.
+            quote = self.monitor.latest_quote()
+            if quote is not None and not _get_attr(quote, "is_stale", False):
+                await self._gate_cycle_entry(quote)
 
             self._start_balance = await self._account_balance()
             self._status = "RUNNING"
@@ -547,9 +868,23 @@ class AutoTradingController:
             if abs(steps * vstep + base - volume) > 1e-9:
                 raise RuntimeError("Volume does not match broker step")
 
-        spread = _get_attr(quote, "spread_points", None)
-        if spread is not None and spread > self.settings.auto_trade_max_spread_points:
-            raise RuntimeError("Spread exceeds maximum")
+        # Spread gate. A genuine high-spread condition is a blocked-entry state,
+        # not a fatal error: the loop starts, submits nothing, and arms the cycle
+        # once a fresh quote is back inside the limit. Missing quotes and invalid
+        # spread inputs are a configuration/metadata fault and still fail the
+        # preflight with their own, distinct message.
+        check = self._evaluate_spread(quote, context="preflight")
+        if check.unavailable:
+            raise RuntimeError(check.reason())
+        if check.blocked:
+            self._last_error = check.reason()
+            self._phase = PHASE_SPREAD_BLOCKED
+            self._phase_before_spread_block = PHASE_INITIALIZING
+            logger.warning(
+                "Starting in %s: no entries will be armed until the spread "
+                "returns within the configured maximum",
+                PHASE_SPREAD_BLOCKED,
+            )
 
     async def _account_balance(self) -> float | None:
         try:
@@ -639,6 +974,12 @@ class AutoTradingController:
         if self._phase == PHASE_ERROR or self._stop_requested:
             return
 
+        # The spread gate protects new entries only. An open position keeps its
+        # protective stop management uninterrupted, and an already-armed cycle
+        # keeps waiting: no order is cancelled and no reference is reset here.
+        if await self._gate_cycle_entry(quote):
+            return
+
         if self._active_side is not None:
             await self._manage_active_position(quote)
         elif self._phase == PHASE_WAITING_ENTRY:
@@ -702,11 +1043,27 @@ class AutoTradingController:
 
     def _strategy_positions(self, positions: list[Any]) -> list[Any]:
         magic = self.settings.auto_trade_magic_number
-        return [p for p in positions if _get_attr(p, "magic", None) == magic]
+        symbol = self._resolved_symbol()
+        result = []
+        for p in positions:
+            if _get_attr(p, "magic", None) != magic:
+                continue
+            if symbol is not None and _get_attr(p, "symbol", None) not in (None, symbol):
+                continue
+            result.append(p)
+        return result
 
     def _strategy_orders(self, orders: list[Any]) -> list[Any]:
         magic = self.settings.auto_trade_magic_number
-        return [o for o in orders if _get_attr(o, "magic", None) == magic]
+        symbol = self._resolved_symbol()
+        result = []
+        for o in orders:
+            if _get_attr(o, "magic", None) != magic:
+                continue
+            if symbol is not None and _get_attr(o, "symbol", None) not in (None, symbol):
+                continue
+            result.append(o)
+        return result
 
     async def _refresh_mt5_state(self) -> None:
         positions = self._strategy_positions(await self._get_positions())
@@ -1419,8 +1776,10 @@ class AutoTradingController:
 
         # Phase 2: remove only the unfilled opposing pending entry.
         if buy_trigger and self._sell_order_ticket is not None and not self._side_removed[SIDE_SELL]:
+            self._side_removed[SIDE_SELL] = True
             await self._cancel_pending_order(self._sell_order_ticket, SIDE_SELL, reason="buy side reached")
         if sell_trigger and self._buy_order_ticket is not None and not self._side_removed[SIDE_BUY]:
+            self._side_removed[SIDE_BUY] = True
             await self._cancel_pending_order(self._buy_order_ticket, SIDE_BUY, reason="sell side reached")
 
         # Place (or re-confirm) an entry that has not been submitted yet.
@@ -1449,148 +1808,318 @@ class AutoTradingController:
             return False
 
         ticket = self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket
+        if ticket is not None and int(ticket) in self._orders:
+            # Idempotency: an order for this side already exists with a tracked
+            # ticket. Verify its price/SL already match the intended values;
+            # if so, retain it and do not recreate.
+            existing = self._orders.get(int(ticket))
+            intended_price = self._buy_entry if side == SIDE_BUY else self._sell_entry
+            intended_sl = self._buy_sl if side == SIDE_BUY else self._sell_sl
+            if existing is not None and intended_price is not None:
+                existing_price = _get_attr(existing, "price", None)
+                existing_sl = _get_attr(existing, "sl", None)
+                tol = self._tolerance()
+                if (
+                    existing_price is not None
+                    and abs(float(existing_price) - float(intended_price)) <= tol
+                    and (intended_sl is None or existing_sl is None or abs(float(existing_sl) - float(intended_sl)) <= tol)
+                ):
+                    logger.debug(
+                        "Retaining existing %s Stop ticket=%s: price=%s sl=%s already match intended",
+                        side.upper(),
+                        ticket,
+                        existing_price,
+                        existing_sl,
+                    )
+                    return True
+            return True
+        # Adopt any untracked order of this side reported by MT5 instead of
+        # placing a duplicate.
+        for order in self._orders.values():
+            if self._side_for_order(order) != side:
+                continue
+            adopted = _get_attr(order, "ticket", None)
+            if adopted is None:
+                continue
+            if side == SIDE_BUY:
+                self._buy_order_ticket = int(adopted)
+            else:
+                self._sell_order_ticket = int(adopted)
+            logger.info(
+                "Adopted existing %s Stop ticket=%s instead of placing a duplicate",
+                side.upper(),
+                adopted,
+            )
+            return True
+
         if ticket is not None:
-            if int(ticket) in self._orders:
-                return True
-            # The order was submitted but is no longer listed. It may just have
-            # filled; reconciliation decides that. Never duplicate it here.
+            # Tracked ticket no longer live; do not duplicate here.
             return False
 
         if self._now() < self._order_retry_at[side]:
             return False
 
-        level = self._buy_entry if side == SIDE_BUY else self._sell_entry
-        stop_loss = self._buy_sl if side == SIDE_BUY else self._sell_sl
-        if level is None or stop_loss is None:
-            return False
+        # Final safeguard: an entry is never submitted on a quote whose spread
+        # is above the configured maximum, or whose spread cannot be verified.
+        # This is independent of the phase, so no code path can bypass it.
+        # Bounded retries with a fresh quote handle transient broker errors
+        # during rapid price movement without duplicating orders.
+        _ENTRY_MAX_ATTEMPTS = 3
+        _TRANSIENT_RETCODES = {10004, 10006, 10020, 10021, 10031}
 
-        mt5 = self.connection.mt5
-        info = await self.connection.acall(mt5.symbol_info, self._resolved_symbol())
-        price = self._norm(level)
-        sl = self._norm(stop_loss)
-        if price is None or sl is None:
-            return False
-        order_type = (
-            _get_attr(mt5, "ORDER_TYPE_BUY_STOP", 4)
-            if side == SIDE_BUY
-            else _get_attr(mt5, "ORDER_TYPE_SELL_STOP", 5)
-        )
-        prefix = "AU_M1_B" if side == SIDE_BUY else "AU_M1_S"
-        request = {
-            "action": _get_attr(mt5, "TRADE_ACTION_PENDING", 5),
-            "symbol": self._resolved_symbol(),
-            "volume": self.settings.auto_trade_lot_size,
-            "type": order_type,
-            "price": price,
-            "sl": sl,
-            # No fixed take-profit, by design.
-            "tp": 0.0,
-            "deviation": self.settings.auto_trade_max_entry_deviation_points,
-            "magic": self.settings.auto_trade_magic_number,
-            "comment": _make_comment(prefix, self._cycle_counter),
-            "type_time": _get_attr(mt5, "ORDER_TIME_GTC", 0),
-            "type_filling": self._filling_mode(mt5, info),
-        }
-        logger.info(
-            "Submitting %s Stop: cycle=%s price=%s sl=%s (no take-profit)",
-            side.upper(),
-            self._current_cycle_id,
-            price,
-            sl,
-        )
-        await self._record_trade_event("entry_submitted", price=price, details=side.upper())
-        try:
-            result = await self.connection.acall(mt5.order_send, request)
-        except Exception as exc:  # noqa: BLE001 - confirm before retrying
+        for _attempt in range(1, _ENTRY_MAX_ATTEMPTS + 1):
+            # Reconcile before every attempt so a delayed response can never
+            # cause a duplicate order.
             await self._refresh_mt5_state()
-            confirmed = await self._find_confirmed_entry(side)
-            if confirmed is not None:
-                self._last_entry_result = (
-                    f"{side} entry ambiguous but confirmed after order_send error"
-                )
-                logger.warning(
-                    "%s Stop submission raised (%s) but MT5 reports the order/position",
-                    side.upper(),
-                    exc,
-                )
-                return True
-            self._failed_entries += 1
-            self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
-            self._note_error(f"{side.upper()} Stop submission failed: {exc}")
-            return False
-
-        if result is None:
-            confirmed = await self._wait_for_confirmed_entry(side, None)
-            if confirmed is not None:
-                self._last_entry_result = (
-                    f"{side} entry ambiguous but confirmed by MT5"
-                )
-                logger.warning(
-                    "%s Stop result was unavailable but MT5 confirms the order/position",
-                    side.upper(),
+            for order in list(self._orders.values()):
+                if self._side_for_order(order) != side:
+                    continue
+                adopted = _get_attr(order, "ticket", None)
+                if adopted is None:
+                    continue
+                if side == SIDE_BUY:
+                    self._buy_order_ticket = int(adopted)
+                else:
+                    self._sell_order_ticket = int(adopted)
+                logger.info(
+                    "ENTRY_CONFIRMED (existing) %s Stop ticket=%s adopted on attempt %s",
+                    side.upper(), adopted, _attempt,
                 )
                 return True
-            self._failed_entries += 1
-            self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
-            self._note_error(f"{side.upper()} Stop result was unavailable and unconfirmed")
-            return False
 
-        retcode = _get_attr(result, "retcode", None)
-        done = _get_attr(mt5, "TRADE_RETCODE_DONE", 10009)
-        partial = _get_attr(mt5, "TRADE_RETCODE_DONE_PARTIAL", 10010)
-        if retcode not in (done, partial):
-            comment = _get_attr(result, "comment", None) or "no comment"
-            self._failed_entries += 1
-            self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
-            self._note_error(
-                f"{side.upper()} Stop rejected: retcode={retcode} comment={comment}"
-            )
-            await self._record_trade_event(
-                "entry_rejected", price=price, result_code=retcode, details=comment
-            )
-            return False
+            fresh_quote = self.monitor.latest_quote()
+            if fresh_quote is None or _get_attr(fresh_quote, "is_stale", False):
+                logger.info("ENTRY_BLOCKED %s: quote unavailable or stale", side.upper())
+                self._last_error = "Market prices are unavailable or stale"
+                return False
 
-        expected_ticket = _get_attr(result, "order", None)
-        confirmed = await self._wait_for_confirmed_entry(side, expected_ticket)
-        if confirmed is None:
-            self._failed_entries += 1
-            self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
-            self._note_error(
-                f"{side.upper()} Stop reported done but no MT5 order/position was found"
+            spread = self._evaluate_spread(
+                fresh_quote, context=f"{side.upper()} Stop submission"
             )
-            return False
+            if spread.outcome != SPREAD_OK:
+                self._last_error = spread.reason()
+                logger.info("ENTRY_BLOCKED %s: %s", side.upper(), spread.reason())
+                return False
+            self._clear_spread_error()
 
-        kind, value = confirmed
-        if kind == "order":
-            if side == SIDE_BUY:
-                self._buy_order_ticket = int(_get_attr(value, "ticket", value))
-            else:
-                self._sell_order_ticket = int(_get_attr(value, "ticket", value))
-            self._last_entry_result = (
-                f"{side} Stop confirmed ticket "
-                f"{self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket}"
+            level = self._buy_entry if side == SIDE_BUY else self._sell_entry
+            stop_loss = self._buy_sl if side == SIDE_BUY else self._sell_sl
+            if level is None or stop_loss is None:
+                return False
+
+            mt5 = self.connection.mt5
+            info = await self.connection.acall(mt5.symbol_info, self._resolved_symbol())
+            price = self._norm(level)
+            sl = self._norm(stop_loss)
+            if price is None or sl is None:
+                return False
+            order_type = (
+                _get_attr(mt5, "ORDER_TYPE_BUY_STOP", 4)
+                if side == SIDE_BUY
+                else _get_attr(mt5, "ORDER_TYPE_SELL_STOP", 5)
             )
+            prefix = "AU_M1_B" if side == SIDE_BUY else "AU_M1_S"
+            request = {
+                "action": _get_attr(mt5, "TRADE_ACTION_PENDING", 5),
+                "symbol": self._resolved_symbol(),
+                "volume": self.settings.auto_trade_lot_size,
+                "type": order_type,
+                "price": price,
+                "sl": sl,
+                "tp": 0.0,
+                "deviation": self.settings.auto_trade_max_entry_deviation_points,
+                "magic": self.settings.auto_trade_magic_number,
+                "comment": _make_comment(prefix, self._cycle_counter),
+                "type_time": _get_attr(mt5, "ORDER_TIME_GTC", 0),
+                "type_filling": self._filling_mode(mt5, info),
+            }
+
+            # Preflight validation with MT5.
+            checker = getattr(mt5, "order_check", None)
+            if checker is not None:
+                try:
+                    check_result = await self.connection.acall(checker, request)
+                except Exception as exc:  # noqa: BLE001
+                    check_result = None
+                    check_exc = exc
+                else:
+                    check_exc = None
+                if check_exc is not None:
+                    logger.warning("ORDER_CHECK_FAILED %s: %s", side.upper(), check_exc)
+                else:
+                    check_retcode = _get_attr(check_result, "retcode", 0)
+                    if check_retcode not in (0, None):
+                        comment = _get_attr(check_result, "comment", None) or "no comment"
+                        logger.warning(
+                            "ORDER_CHECK_FAILED %s: retcode=%s comment=%s",
+                            side.upper(), check_retcode, comment,
+                        )
+                        if check_retcode in _TRANSIENT_RETCODES and _attempt < _ENTRY_MAX_ATTEMPTS:
+                            await self._sleep(_ORDER_RETRY_SECONDS)
+                            continue
+                        self._failed_entries += 1
+                        self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
+                        self._note_error(
+                            f"{side.upper()} Stop order_check rejected: retcode={check_retcode} comment={comment}"
+                        )
+                        return False
+
+            existing_ticket = self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket
             logger.info(
-                "%s Stop confirmed: ticket=%s price=%s sl=%s",
+                "MT5 entry submit: ts=%s profile=%s symbol=%s action=PENDING %s "
+                "cycle=%s magic=%s ticket_before=%s price=%s sl=%s tp=0.0 "
+                "attempt=%s bid=%s ask=%s spread_points=%s point=%s digits=%s "
+                "stops_level=%s freeze_level=%s max_spread=%s deviation=%s",
+                _utcnow().isoformat(),
+                getattr(self.settings, "auto_trade_profile", None),
+                self._resolved_symbol(),
                 side.upper(),
-                self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket,
+                self._current_cycle_id,
+                self.settings.auto_trade_magic_number,
+                existing_ticket,
                 price,
                 sl,
+                _attempt,
+                _get_attr(fresh_quote, "bid", None),
+                _get_attr(fresh_quote, "ask", None),
+                _get_attr(fresh_quote, "spread_points", None),
+                _get_attr(fresh_quote, "point", None) or self._tick_size,
+                self._digits,
+                _get_attr(info, "trade_stops_level", None),
+                _get_attr(info, "trade_freeze_level", None),
+                getattr(self.settings, "auto_trade_max_spread_points", None),
+                self.settings.auto_trade_max_entry_deviation_points,
             )
-            await self._record_trade_event(
-                "entry_confirmed",
-                price=price,
-                order_ticket=self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket,
-                details=side.upper(),
-            )
-        else:
+            await self._record_trade_event("entry_submitted", price=price, details=side.upper())
+            try:
+                result = await self.connection.acall(mt5.order_send, request)
+            except Exception as exc:  # noqa: BLE001 - confirm before retrying
+                await self._refresh_mt5_state()
+                confirmed = await self._find_confirmed_entry(side)
+                if confirmed is not None:
+                    self._last_entry_result = (
+                        f"{side} entry ambiguous but confirmed after order_send error"
+                    )
+                    logger.warning(
+                        "ENTRY_CONFIRMED %s: submission raised (%s) but MT5 reports the order/position",
+                        side.upper(), exc,
+                    )
+                    return True
+                if _attempt < _ENTRY_MAX_ATTEMPTS:
+                    await self._sleep(_ORDER_RETRY_SECONDS)
+                    continue
+                self._failed_entries += 1
+                self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
+                self._note_error(f"{side.upper()} Stop submission failed: {exc}")
+                return False
+
+            if result is None:
+                confirmed = await self._wait_for_confirmed_entry(side, None)
+                if confirmed is not None:
+                    self._last_entry_result = (
+                        f"{side} entry ambiguous but confirmed by MT5"
+                    )
+                    logger.warning(
+                        "ENTRY_CONFIRMED %s: result unavailable but MT5 confirms",
+                        side.upper(),
+                    )
+                    return True
+                if _attempt < _ENTRY_MAX_ATTEMPTS:
+                    await self._sleep(_ORDER_RETRY_SECONDS)
+                    continue
+                self._failed_entries += 1
+                self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
+                self._note_error(f"{side.upper()} Stop result was unavailable and unconfirmed")
+                return False
+
             logger.info(
-                "%s Stop was executed immediately; position confirmed",
+                "MT5 entry result: ts=%s profile=%s symbol=%s %s retcode=%s comment=%s "
+                "order=%s position=%s attempt=%s",
+                _utcnow().isoformat(),
+                getattr(self.settings, "auto_trade_profile", None),
+                self._resolved_symbol(),
                 side.upper(),
+                _get_attr(result, "retcode", None),
+                _get_attr(result, "comment", None),
+                _get_attr(result, "order", None),
+                _get_attr(result, "position", None),
+                _attempt,
             )
-            await self._adopt_position(value, quote)
-        await self._persist_state(force=True)
-        return True
+
+            retcode = _get_attr(result, "retcode", None)
+            done = _get_attr(mt5, "TRADE_RETCODE_DONE", 10009)
+            partial = _get_attr(mt5, "TRADE_RETCODE_DONE_PARTIAL", 10010)
+            if retcode not in (done, partial):
+                comment = _get_attr(result, "comment", None) or "no comment"
+                logger.warning(
+                    "ORDER_SEND_FAILED %s: retcode=%s comment=%s", side.upper(), retcode, comment,
+                )
+                if retcode in _TRANSIENT_RETCODES and _attempt < _ENTRY_MAX_ATTEMPTS:
+                    await self._sleep(_ORDER_RETRY_SECONDS)
+                    continue
+                self._failed_entries += 1
+                self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
+                self._note_error(
+                    f"{side.upper()} Stop rejected: retcode={retcode} comment={comment}"
+                )
+                await self._record_trade_event(
+                    "entry_rejected", price=price, result_code=retcode, details=comment
+                )
+                return False
+
+            expected_ticket = _get_attr(result, "order", None)
+            confirmed = await self._wait_for_confirmed_entry(side, expected_ticket)
+            if confirmed is None:
+                logger.warning(
+                    "ENTRY_EXPIRED_OR_CANCELLED %s: order accepted but not confirmed",
+                    side.upper(),
+                )
+                if _attempt < _ENTRY_MAX_ATTEMPTS:
+                    await self._sleep(_ORDER_RETRY_SECONDS)
+                    continue
+                self._failed_entries += 1
+                self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
+                self._note_error(
+                    f"{side.upper()} Stop reported done but no MT5 order/position was found"
+                )
+                return False
+
+            kind, value = confirmed
+            if kind == "order":
+                if side == SIDE_BUY:
+                    self._buy_order_ticket = int(_get_attr(value, "ticket", value))
+                else:
+                    self._sell_order_ticket = int(_get_attr(value, "ticket", value))
+                self._last_entry_result = (
+                    f"{side} Stop confirmed ticket "
+                    f"{self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket}"
+                )
+                logger.info(
+                    "ENTRY_CONFIRMED %s: ticket=%s price=%s sl=%s",
+                    side.upper(),
+                    self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket,
+                    price,
+                    sl,
+                )
+                await self._record_trade_event(
+                    "entry_confirmed",
+                    price=price,
+                    order_ticket=self._buy_order_ticket if side == SIDE_BUY else self._sell_order_ticket,
+                    details=side.upper(),
+                )
+            else:
+                logger.info(
+                    "%s Stop was executed immediately; position confirmed",
+                    side.upper(),
+                )
+                await self._adopt_position(value, quote)
+            await self._persist_state(force=True)
+            return True
+
+        self._failed_entries += 1
+        self._order_retry_at[side] = self._now() + _ORDER_RETRY_SECONDS
+        self._note_error(f"{side.upper()} Stop submission exhausted retries")
+        return False
 
     async def _wait_for_confirmed_entry(
         self, side: str, expected_ticket: Any
@@ -1659,6 +2188,17 @@ class AutoTradingController:
             return True
 
         mt5 = self.connection.mt5
+        logger.info(
+            "MT5 entry remove: ts=%s profile=%s symbol=%s action=REMOVE %s "
+            "ticket=%s magic=%s reason=%s",
+            _utcnow().isoformat(),
+            getattr(self.settings, "auto_trade_profile", None),
+            self._resolved_symbol(),
+            side.upper(),
+            ticket,
+            self.settings.auto_trade_magic_number,
+            reason,
+        )
         request = {
             "action": _get_attr(mt5, "TRADE_ACTION_REMOVE", 8),
             "order": int(ticket),
@@ -1673,6 +2213,17 @@ class AutoTradingController:
             self._note_error(f"Could not remove {side} Stop {ticket}: {exc}")
             return False
 
+        logger.info(
+            "MT5 entry remove result: ts=%s profile=%s symbol=%s %s ticket=%s "
+            "retcode=%s comment=%s",
+            _utcnow().isoformat(),
+            getattr(self.settings, "auto_trade_profile", None),
+            self._resolved_symbol(),
+            side.upper(),
+            ticket,
+            _get_attr(result, "retcode", None),
+            _get_attr(result, "comment", None),
+        )
         retcode = _get_attr(result, "retcode", None)
         done = _get_attr(mt5, "TRADE_RETCODE_DONE", 10009)
         if result is not None and retcode not in (done,):
@@ -1889,9 +2440,40 @@ class AutoTradingController:
         target = self._norm(target_sl)
         if target is None:
             return False
+
+        # Authority: the broker's reported stop is the source of truth for the
+        # "current" level. Sync the tracked value first so a stale in-memory
+        # level can never trigger a redundant modification.
+        broker_sl = _get_attr(position, "sl", None) if position is not None else None
+        if broker_sl is not None:
+            try:
+                broker_sl_value = float(broker_sl)
+            except (TypeError, ValueError):
+                broker_sl_value = None
+            if broker_sl_value is not None and broker_sl_value > 0:
+                self._current_sl = broker_sl_value
+
+        tolerance = self._tolerance()
+        # Idempotency: if the broker already holds the intended stop (within one
+        # tick) there is nothing to modify. Never send a redundant SLTP request.
+        if broker_sl is not None:
+            try:
+                if abs(float(broker_sl) - target) <= tolerance:
+                    logger.debug(
+                        "Stop already at target; no modification: %s ticket=%s "
+                        "sl=%s target=%s",
+                        side.upper(),
+                        self._position_ticket,
+                        broker_sl,
+                        target,
+                    )
+                    self._current_sl = float(broker_sl)
+                    return True
+            except (TypeError, ValueError):
+                pass
+
         # Never loosen a stop, whatever a stale state or broker echo says.
         if self._current_sl is not None:
-            tolerance = self._tolerance()
             if side == SIDE_BUY and target <= self._current_sl + tolerance:
                 return False
             if side == SIDE_SELL and target >= self._current_sl - tolerance:
@@ -1931,11 +2513,19 @@ class AutoTradingController:
             }
             if self._last_sl_request_level != target:
                 logger.info(
-                    "Submitting break-even stop move: %s ticket=%s %s -> %s",
+                    "MT5 SLTP submit: ts=%s profile=%s symbol=%s action=SLTP %s "
+                    "position=%s magic=%s sl_before=%s sl_requested=%s tp=%s "
+                    "reason=%s",
+                    _utcnow().isoformat(),
+                    getattr(self.settings, "auto_trade_profile", None),
+                    self._resolved_symbol(),
                     side.upper(),
                     position_ticket,
+                    self.settings.auto_trade_magic_number,
                     self._current_sl,
                     target,
+                    _get_attr(position, "tp", 0.0) or 0.0,
+                    reason,
                 )
                 self._last_sl_request_level = target
 
@@ -1946,6 +2536,18 @@ class AutoTradingController:
                 self._note_error(f"Break-even stop move failed: {exc}")
                 return False
 
+            logger.info(
+                "MT5 SLTP result: ts=%s profile=%s symbol=%s %s position=%s "
+                "retcode=%s comment=%s sl_after=%s",
+                _utcnow().isoformat(),
+                getattr(self.settings, "auto_trade_profile", None),
+                self._resolved_symbol(),
+                side.upper(),
+                position_ticket,
+                _get_attr(result, "retcode", None),
+                _get_attr(result, "comment", None),
+                target,
+            )
             retcode = _get_attr(result, "retcode", None)
             done = _get_attr(mt5, "TRADE_RETCODE_DONE", 10009)
             if result is None or retcode != done:
@@ -1967,9 +2569,13 @@ class AutoTradingController:
                 return False
 
             old_level = self._current_sl
-            self._current_sl = target
+            # Keep the broker's confirmed level (set by _confirm_stop_level) rather
+            # than the requested target, so future idempotency checks use the
+            # value actually stored by the terminal.
+            if self._current_sl is None:
+                self._current_sl = target
             self._last_exit_result = (
-                f"{reason}: {side} ticket {position_ticket} stop {old_level} -> {target}"
+                f"{reason}: {side} ticket {position_ticket} stop {old_level} -> {self._current_sl}"
             )
             self._last_sl_request_level = None
             self._sl_retry_at = 0.0
@@ -1995,15 +2601,32 @@ class AutoTradingController:
 
     async def _confirm_stop_level(self, ticket: int, side: str, target: float) -> bool:
         deadline = self._now() + _CONFIRM_TIMEOUT_SECONDS
-        tolerance = self._tolerance()
+        # Tolerate the broker's own normalisation: the stored SL may be rounded
+        # to the broker's tick grid, which can differ by up to one tick from the
+        # requested value. Accepting the broker's value prevents retry storms.
+        tolerance = max(self._tolerance() * 2.0, self._tolerance())
         while True:
             positions = self._strategy_positions(await self._get_positions())
             for position in positions:
                 if _get_attr(position, "ticket", None) != ticket:
                     continue
                 broker_sl = _get_attr(position, "sl", None)
-                if broker_sl is not None and abs(float(broker_sl) - target) <= tolerance:
+                if broker_sl is None:
+                    continue
+                try:
+                    broker_value = float(broker_sl)
+                except (TypeError, ValueError):
+                    continue
+                # Accept when the broker's SL matches the target within tolerance,
+                # or is already at least as protective as the target.
+                acceptable = abs(broker_value - target) <= tolerance
+                if side == SIDE_BUY and not acceptable:
+                    acceptable = broker_value >= target - tolerance
+                if side == SIDE_SELL and not acceptable:
+                    acceptable = broker_value <= target + tolerance
+                if acceptable:
                     self._position = position
+                    self._current_sl = broker_value
                     return True
             if self._now() >= deadline:
                 return False
@@ -2342,6 +2965,19 @@ class AutoTradingController:
             cycle_id=self._current_cycle_id,
             magic_number=self.settings.auto_trade_magic_number,
             strategy_phase=self._phase,
+            profile=getattr(self.settings, "auto_trade_profile", None),
+            spread_blocked=self._spread_blocked,
+            spread_points=(
+                self._last_spread_check.spread_points
+                if self._last_spread_check is not None
+                else None
+            ),
+            max_spread_points=(
+                self._last_spread_check.limit
+                if self._last_spread_check is not None
+                and self._last_spread_check.limit is not None
+                else float(self.settings.auto_trade_max_spread_points)
+            ),
             active_side=self._active_side,
             reference_value=self._reference_value,
             buy_entry=self._buy_entry,
