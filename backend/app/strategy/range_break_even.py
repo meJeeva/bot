@@ -129,8 +129,19 @@ def build_cycle_levels(
         raise ValueError("A finite market reference value is required")
     buy_entry = normalize_price(ref + offset, tick_size, digits)
     sell_entry = normalize_price(ref - offset, tick_size, digits)
-    initial_buy_sl = normalize_price(ref, tick_size, digits)
-    initial_sell_sl = normalize_price(ref, tick_size, digits)
+    # Initial protective stops are derived from each entry's own price, not
+    # from the cycle reference, so an entry that differs from the reference
+    # by more than the configured offset keeps that difference in its SL.
+    initial_buy_sl = normalize_price(
+        (buy_entry if buy_entry is not None else ref + offset) - offset,
+        tick_size,
+        digits,
+    )
+    initial_sell_sl = normalize_price(
+        (sell_entry if sell_entry is not None else ref - offset) + offset,
+        tick_size,
+        digits,
+    )
     assert buy_entry is not None and sell_entry is not None
     assert initial_buy_sl is not None and initial_sell_sl is not None
     return CycleLevels(
@@ -267,6 +278,30 @@ def calculate_atr(rates: Any, period: int = 14) -> float | None:
     return sum(true_ranges[-period:]) / float(period)
 
 
+def initial_buy_stop_loss(
+    entry_price: float,
+    stop_distance: float = 1.0,
+    tick_size: float | None = None,
+    digits: int | None = None,
+) -> float | None:
+    """Initial protective stop for a BUY entry.
+
+    The stop is derived from the entry's own price, preserving any difference
+    between the entry and the cycle reference.
+    """
+    return normalize_price(float(entry_price) - float(stop_distance), tick_size, digits)
+
+
+def initial_sell_stop_loss(
+    entry_price: float,
+    stop_distance: float = 1.0,
+    tick_size: float | None = None,
+    digits: int | None = None,
+) -> float | None:
+    """Initial protective stop for a SELL entry."""
+    return normalize_price(float(entry_price) + float(stop_distance), tick_size, digits)
+
+
 def effective_trailing_distance(
     atr: float | None, multiplier: float, cap: float
 ) -> float:
@@ -309,4 +344,6 @@ __all__ = [
     "sell_break_even_level",
     "calculate_atr",
     "effective_trailing_distance",
+    "initial_buy_stop_loss",
+    "initial_sell_stop_loss",
 ]

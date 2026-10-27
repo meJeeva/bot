@@ -1210,7 +1210,16 @@ class AutoTradingController:
             )
 
         broker_sl = _get_attr(position, "sl", None)
-        initial_sl = self._buy_sl if side == SIDE_BUY else self._sell_sl
+        # Initial protective stops are derived from the actual entry price,
+        # not from the cycle reference, so an entry that differs from the
+        # reference by more than the configured offset keeps that difference.
+        if self._entry_price is not None:
+            if side == SIDE_BUY:
+                initial_sl = self._norm(self._entry_price - self._entry_offset)
+            else:
+                initial_sl = self._norm(self._entry_price + self._entry_offset)
+        else:
+            initial_sl = self._buy_sl if side == SIDE_BUY else self._sell_sl
         if self._current_sl is None:
             self._current_sl = (
                 float(broker_sl) if broker_sl else float(initial_sl or 0.0) or None
