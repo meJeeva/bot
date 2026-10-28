@@ -17,29 +17,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
-#: Established per-instrument values. The XAUUSD column is the original
-#: strategy configuration; the BTCUSD column migrates the operator's existing
-#: BTCUSD environment values without changing their meanings.
+#: Established per-instrument values for the only supported instrument (XAUUSD).
 _PROFILE_DEFAULTS: dict[str, dict[str, object]] = {
     "XAUUSD": {
         "symbol": "XAUUSD",
         "symbol_candidates": "XAUUSD,XAUUSD.,XAUUSDm,XAUUSD.c,#XAUUSD",
         "timeframe": "M1",
-        "entry_offset": 1.00,
-        "break_even_offset": 0.40,
-        "trailing_distance": 0.40,
+        "entry_offset": 0.20,
+        "break_even_offset": 0.20,
+        "trailing_distance": 0.20,
         "lot_size": 0.01,
-        "max_spread_points": 100.0,
-        "max_entry_deviation_points": 20,
-    },
-    "BTCUSD": {
-        "symbol": "BTCUSD",
-        "symbol_candidates": "BTCUSD,BTCUSDm,BTCUSD.c,#BTCUSD,BTCUSD.",
-        "timeframe": "M1",
-        "entry_offset": 15.0,
-        "break_even_offset": 4.0,
-        "trailing_distance": 4.0,
-        "lot_size": 1.0,
         "max_spread_points": 100.0,
         "max_entry_deviation_points": 20,
     },
@@ -184,13 +171,16 @@ class Settings(BaseSettings):
     auto_trade_demo_authorized: bool = Field(default=False, description="Explicit operator acknowledgment that order placement is authorized on a demo account")
 
     # --- Instrument profile selection ---
-    auto_trade_profile: str = Field(default="XAUUSD", validation_alias=AliasChoices("AUTO_TRADE_PROFILE", "auto_trade_profile"), description="Active instrument profile: XAUUSD or BTCUSD")
+    auto_trade_profile: str = Field(default="XAUUSD", validation_alias=AliasChoices("AUTO_TRADE_PROFILE", "auto_trade_profile"), description="Active instrument profile: XAUUSD only")
 
     # --- XAUUSD profile ---
     xauusd_symbol: Optional[str] = Field(default=None, validation_alias="XAUUSD_MT5_SYMBOL")
     xauusd_symbol_candidates: Optional[str] = Field(default=None, validation_alias="XAUUSD_MT5_SYMBOL_CANDIDATES")
     xauusd_timeframe: Optional[str] = Field(default=None, validation_alias="XAUUSD_TIMEFRAME")
     xauusd_entry_offset: Optional[float] = Field(default=None, validation_alias="XAUUSD_ENTRY_OFFSET")
+    xauusd_buy_entry_offset: Optional[float] = Field(default=None, validation_alias="XAUUSD_BUY_ENTRY_OFFSET")
+    xauusd_sell_entry_offset: Optional[float] = Field(default=None, validation_alias="XAUUSD_SELL_ENTRY_OFFSET")
+    xauusd_initial_sl_distance: Optional[float] = Field(default=None, validation_alias="XAUUSD_INITIAL_SL_DISTANCE")
     xauusd_break_even_offset: Optional[float] = Field(default=None, validation_alias="XAUUSD_BREAK_EVEN_OFFSET")
     xauusd_trailing_distance: Optional[float] = Field(default=None, validation_alias="XAUUSD_TRAILING_DISTANCE")
     xauusd_trailing_mode: Optional[str] = Field(default=None, validation_alias="XAUUSD_TRAILING_MODE")
@@ -200,21 +190,14 @@ class Settings(BaseSettings):
     xauusd_max_spread_points: Optional[float] = Field(default=None, validation_alias="XAUUSD_MAX_SPREAD_POINTS")
     xauusd_max_entry_deviation_points: Optional[int] = Field(default=None, validation_alias="XAUUSD_MAX_ENTRY_DEVIATION_POINTS")
 
-    # --- BTCUSD profile ---
-    btcusd_symbol: Optional[str] = Field(default=None, validation_alias="BTCUSD_MT5_SYMBOL")
-    btcusd_symbol_candidates: Optional[str] = Field(default=None, validation_alias="BTCUSD_MT5_SYMBOL_CANDIDATES")
-    btcusd_timeframe: Optional[str] = Field(default=None, validation_alias="BTCUSD_TIMEFRAME")
-    btcusd_entry_offset: Optional[float] = Field(default=None, validation_alias="BTCUSD_ENTRY_OFFSET")
-    btcusd_break_even_offset: Optional[float] = Field(default=None, validation_alias="BTCUSD_BREAK_EVEN_OFFSET")
-    btcusd_trailing_distance: Optional[float] = Field(default=None, validation_alias="BTCUSD_TRAILING_DISTANCE")
-    btcusd_lot_size: Optional[float] = Field(default=None, validation_alias="BTCUSD_LOT_SIZE")
-    btcusd_max_spread_points: Optional[float] = Field(default=None, validation_alias="BTCUSD_MAX_SPREAD_POINTS")
-    btcusd_max_entry_deviation_points: Optional[int] = Field(default=None, validation_alias="BTCUSD_MAX_ENTRY_DEVIATION_POINTS")
 
     # --- Automatic trading settings ---
     auto_trade_symbol: Optional[str] = Field(default=None, description="Instrument the strategy trades")
     auto_trade_timeframe: str = Field(default="M1", description="Strategy chart timeframe")
     auto_trade_entry_offset: Optional[float] = Field(default=None, gt=0, description="Entry offset")
+    auto_trade_buy_entry_offset: Optional[float] = Field(default=None, gt=0, description="Buy-side entry offset (defaults to the entry offset)")
+    auto_trade_sell_entry_offset: Optional[float] = Field(default=None, gt=0, description="Sell-side entry offset (defaults to the entry offset)")
+    auto_trade_initial_sl_distance: Optional[float] = Field(default=None, gt=0, description="Initial stop-loss distance from the filled entry (defaults to the entry offset)")
     auto_trade_magic_number: int = Field(default=9001, description="Magic number")
     auto_trade_lot_size: float = Field(
         default=0.01, gt=0, validation_alias=AliasChoices("AUTO_TRADE_LOT_SIZE", "AUTO_TRADE_VOLUME"),
@@ -429,13 +412,12 @@ class Settings(BaseSettings):
         "auto_trade_break_even_offset",
         "auto_trade_trailing_distance",
         "xauusd_entry_offset",
+        "xauusd_buy_entry_offset",
+        "xauusd_sell_entry_offset",
+        "xauusd_initial_sl_distance",
         "xauusd_break_even_offset",
         "xauusd_trailing_distance",
         "xauusd_lot_size",
-        "btcusd_entry_offset",
-        "btcusd_break_even_offset",
-        "btcusd_trailing_distance",
-        "btcusd_lot_size",
         mode="before",
     )
     @classmethod
@@ -488,32 +470,24 @@ class Settings(BaseSettings):
         profile_keys = ("auto_trade_profile", "AUTO_TRADE_PROFILE")
         if any(key in data for key in profile_keys):
             return data
-        btc_prefixed = any(
-            key.lower().startswith("btcusd_") and data.get(key) is not None
-            for key in data
-        )
         xau_prefixed = any(
             key.lower().startswith("xauusd_") and data.get(key) is not None
             for key in data
         )
-        inferred = None
-        if btc_prefixed and not xau_prefixed:
-            inferred = "BTCUSD"
-        elif xau_prefixed and not btc_prefixed:
-            inferred = "XAUUSD"
-        else:
-            for key in ("mt5_symbol", "auto_trade_symbol", "MT5_SYMBOL", "AUTO_TRADE_SYMBOL"):
-                value = data.get(key)
-                if isinstance(value, str):
-                    upper = value.strip().upper()
-                    if upper.startswith("BTC"):
-                        inferred = "BTCUSD"
-                        break
-                    if upper.startswith("XAU"):
-                        inferred = "XAUUSD"
-                        break
-        if inferred is None:
-            inferred = "XAUUSD"
+
+        inferred = "XAUUSD"
+        for key in ("mt5_symbol", "auto_trade_symbol", "MT5_SYMBOL", "AUTO_TRADE_SYMBOL"):
+            value = data.get(key)
+            if isinstance(value, str):
+                upper = value.strip().upper()
+                if upper.startswith("BTC"):
+                    # Unsupported instrument: keep XAUUSD profile and let
+                    # validation reject the conflicting symbol below.
+                    inferred = "XAUUSD"
+                    break
+                if upper.startswith("XAU"):
+                    inferred = "XAUUSD"
+                    break
         data["auto_trade_profile"] = inferred
         return data
 
@@ -569,12 +543,6 @@ class Settings(BaseSettings):
 
         resolved = {"symbol": instrument}
 
-        required_btc = {
-            "entry_offset": "AUTO_TRADE_ENTRY_OFFSET",
-            "break_even_offset": "AUTO_TRADE_BREAK_EVEN_OFFSET",
-            "trailing_distance": "AUTO_TRADE_TRAILING_DISTANCE",
-            "lot_size": "AUTO_TRADE_LOT_SIZE",
-        }
         missing_required = []
 
         for name, legacy_field in _LEGACY_PARAM_FIELDS.items():
@@ -591,9 +559,6 @@ class Settings(BaseSettings):
                 value = legacy_value
                 logger.warning("DEPRECATED: %s now feeds the %s profile; rename it to %s_%s", legacy_field.upper(), profile, profile, name.upper())
             else:
-                if profile == "BTCUSD" and name in required_btc:
-                    missing_required.append(required_btc[name])
-                    continue
                 value = defaults[name]
 
             if name == "symbol_candidates":
@@ -626,8 +591,23 @@ class Settings(BaseSettings):
                 raise ValueError(f"{profile}_{name.upper()} must be positive; got {value!r}")
             resolved[name] = number
 
-        if missing_required:
-            raise ValueError("BTCUSD profile requires explicitly configured values: " + ", ".join(missing_required))
+        # Side-specific entry distances and the independent initial stop-loss
+        # distance. A profile that does not configure them keeps the symmetric
+        # entry offset for both sides and for the initial stop, so deployments
+        # without these settings resolve exactly as before. They deliberately
+        # override an entry offset that is still present rather than conflict
+        # with it.
+        for side_name in ("buy_entry_offset", "sell_entry_offset", "initial_sl_distance"):
+            prefixed_value = getattr(self, f"{prefix}_{side_name}")
+            if prefixed_value is None:
+                resolved[side_name] = resolved["entry_offset"]
+                continue
+            side_value = float(prefixed_value)
+            if not math.isfinite(side_value) or side_value <= 0:
+                raise ValueError(
+                    f"{profile}_{side_name.upper()} must be a positive finite number; got {prefixed_value!r}"
+                )
+            resolved[side_name] = side_value
 
         if "symbol_candidates" not in resolved:
             resolved["symbol_candidates"] = defaults["symbol_candidates"]
@@ -644,20 +624,9 @@ class Settings(BaseSettings):
         self.auto_trade_lot_size = float(resolved["lot_size"])
         self.auto_trade_max_spread_points = float(resolved["max_spread_points"])
         self.auto_trade_max_entry_deviation_points = int(resolved["max_entry_deviation_points"])
-
-        # BTCUSD must not inherit XAUUSD defaults (already handled by required check)
-        instrument = str(self.auto_trade_symbol or self.mt5_symbol or "").upper()
-        if instrument.startswith("BTCUSD"):
-            required_fields = (
-                ("AUTO_TRADE_ENTRY_OFFSET", "auto_trade_entry_offset"),
-                ("AUTO_TRADE_BREAK_EVEN_OFFSET", "auto_trade_break_even_offset"),
-                ("AUTO_TRADE_TRAILING_DISTANCE", "auto_trade_trailing_distance"),
-                ("AUTO_TRADE_LOT_SIZE", "auto_trade_lot_size"),
-            )
-            missing = [env for env, field in required_fields if field not in explicit_fields and getattr(self, field) is None]
-            # Already validated above; keep as guard.
-            if missing and profile != "BTCUSD":
-                raise ValueError("The BTCUSD profile requires explicitly configured values; missing: " + ", ".join(missing))
+        self.auto_trade_buy_entry_offset = float(resolved["buy_entry_offset"])
+        self.auto_trade_sell_entry_offset = float(resolved["sell_entry_offset"])
+        self.auto_trade_initial_sl_distance = float(resolved["initial_sl_distance"])
 
         if not self.app_read_only:
             raise ValueError("APP_READ_ONLY must remain True for safety")

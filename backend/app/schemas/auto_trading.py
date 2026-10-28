@@ -77,6 +77,23 @@ class AutoTradingStatus(BaseModel):
     last_processed_deal: Any = None
     previous_cycle_complete: bool = False
 
+    # Worker heartbeat and MT5 state reporting.
+    worker_heartbeat: float | None = None
+    heartbeat: float | None = None
+    last_heartbeat: float | None = None
+    mt5_connected: bool = False
+    mt5_connectivity: bool = False
+    mt5_query_ok: bool = True
+    mt5_query_error: str | None = None
+    pending_order_count: int = 0
+    pending_orders: int = 0
+    open_position_count: int = 0
+    open_positions: int = 0
+    last_order_attempt: str | None = None
+    last_broker_result: str | None = None
+    last_result: str | None = None
+    active_profile: str | None = None
+
     def sync(self) -> "AutoTradingStatus":
         self.auto_trading_status = self.status
         self.trading_status = self.status

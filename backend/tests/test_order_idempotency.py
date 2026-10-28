@@ -6,9 +6,13 @@ import asyncio
 
 import pytest
 
-from tests.auto_trading_harness import VirtualClock, install_virtual_time
-from tests.test_btcusd_support import build_btc_controller, _run_until_pending, btc_fake
-from tests.fakes import FakePosition
+from tests.auto_trading_harness import (
+    VirtualClock,
+    _run_until_pending,
+    build_controller,
+    install_virtual_time,
+)
+from tests.fakes import FakePosition, gold_terminal_with_live_tick
 
 
 MAGIC = 9001
@@ -22,8 +26,8 @@ def _sltp_count(fake):
 async def test_unchanged_stop_loss_does_not_trigger_sltp(monkeypatch):
     clock = VirtualClock()
     install_virtual_time(monkeypatch, clock)
-    fake = btc_fake()
-    controller, _connection, _settings = await build_btc_controller(fake)
+    fake = gold_terminal_with_live_tick()
+    controller, _connection, _settings = await build_controller(fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40)
 
     await controller.start()
     await _run_until_pending(controller, clock, fake)
@@ -34,9 +38,9 @@ async def test_unchanged_stop_loss_does_not_trigger_sltp(monkeypatch):
     fake.orders = [o for o in fake.orders if o.ticket != buy.ticket]
     position = FakePosition(
         ticket=7001,
-        symbol="BTCUSD",
+        symbol="XAUUSD",
         magic=MAGIC,
-        volume=0.05,
+        volume=0.01,
         price_open=controller._buy_entry,
         sl=controller._buy_sl,
         type=0,
@@ -60,8 +64,8 @@ async def test_unchanged_stop_loss_does_not_trigger_sltp(monkeypatch):
 async def test_legitimate_stop_change_still_triggers_sltp(monkeypatch):
     clock = VirtualClock()
     install_virtual_time(monkeypatch, clock)
-    fake = btc_fake()
-    controller, _connection, _settings = await build_btc_controller(fake)
+    fake = gold_terminal_with_live_tick()
+    controller, _connection, _settings = await build_controller(fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40)
 
     await controller.start()
     await _run_until_pending(controller, clock, fake)
@@ -72,9 +76,9 @@ async def test_legitimate_stop_change_still_triggers_sltp(monkeypatch):
     fake.orders = [o for o in fake.orders if o.ticket != buy.ticket]
     position = FakePosition(
         ticket=7002,
-        symbol="BTCUSD",
+        symbol="XAUUSD",
         magic=MAGIC,
-        volume=0.05,
+        volume=0.01,
         price_open=controller._buy_entry,
         sl=controller._buy_sl,
         type=0,

@@ -14,9 +14,14 @@ interface AutoTradingPanelProps {
 
 const WORKER_TONE: Record<string, PillTone> = {
   RUNNING: 'positive',
+  WAITING: 'neutral',
+  SPREAD_BLOCKED: 'warning',
+  READ_ONLY: 'neutral',
+  DEGRADED: 'warning',
   STARTING: 'warning',
   STOPPING: 'warning',
   STOPPED: 'neutral',
+  FAILED: 'negative',
   ERROR: 'negative',
 };
 
@@ -32,8 +37,16 @@ const WORKER_TONE: Record<string, PillTone> = {
 export function AutoTradingPanel({ status, error, busy, onStart, onStop }: AutoTradingPanelProps) {
   const currentStatus = status?.status ?? 'STOPPED';
   const canStart = currentStatus === 'STOPPED' || currentStatus === 'ERROR';
+  // A worker that is actively running, waiting for an entry, spread-blocked
+  // or degraded can still be stopped by the operator. Only terminal/idle
+  // states (STOPPED/FAILED) or an in-flight request keep Stop disabled.
   const canStop =
-    currentStatus === 'RUNNING' || currentStatus === 'STARTING' || currentStatus === 'STOPPING';
+    currentStatus === 'RUNNING' ||
+    currentStatus === 'STARTING' ||
+    currentStatus === 'STOPPING' ||
+    currentStatus === 'WAITING' ||
+    currentStatus === 'SPREAD_BLOCKED' ||
+    currentStatus === 'DEGRADED';
 
   return (
     <section className="card control-card" aria-labelledby="auto-trading-heading">

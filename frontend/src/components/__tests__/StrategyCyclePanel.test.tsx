@@ -75,8 +75,8 @@ describe('StrategyCyclePanel', () => {
       <StrategyCyclePanel
         status={makeAutoTradingStatus({
           strategy_phase: 'SPREAD_BLOCKED',
-          profile: 'BTCUSD',
-          symbol: 'BTCUSD.m',
+          profile: 'XAUUSD',
+          symbol: 'XAUUSD.m',
           spread_blocked: true,
           spread_points: 858,
           max_spread_points: 100,

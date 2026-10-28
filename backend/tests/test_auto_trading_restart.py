@@ -65,7 +65,7 @@ async def test_confirmed_buy_sl_starts_one_next_cycle(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=5
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=5
     )
     await controller.start()
     pos = await _fill_buy(controller, clock, fake)
@@ -85,7 +85,7 @@ async def test_confirmed_sell_sl_starts_one_next_cycle(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=5
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=5
     )
     await controller.start()
     await _run_until_pending(controller, clock, fake)
@@ -119,7 +119,7 @@ async def test_trailing_be_sl_starts_next_cycle(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=5
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=5
     )
     await controller.start()
     pos = await _fill_buy(controller, clock, fake)
@@ -153,7 +153,7 @@ async def test_next_reference_uses_latest_price(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick(bid=4185.58, ask=4186.14)
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=5
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=5
     )
     await controller.start()
     pos = await _fill_buy(controller, clock, fake)
@@ -173,7 +173,7 @@ async def test_duplicate_deal_does_not_duplicate_cycle(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=5
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=5
     )
     await controller.start()
     pos = await _fill_buy(controller, clock, fake)
@@ -193,7 +193,7 @@ async def test_delayed_deal_history_handled(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=5
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=5
     )
     await controller.start()
     pos = await _fill_buy(controller, clock, fake)
@@ -225,7 +225,7 @@ async def test_three_sequential_sl_cycles(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=10
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=10
     )
     await controller.start()
     for i in range(3):
@@ -259,7 +259,7 @@ async def test_stop_prevents_further_entries(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=10
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=10
     )
     await controller.start()
     await _run_until_pending(controller, clock, fake)
@@ -276,7 +276,7 @@ async def test_rejected_entry_no_false_success(monkeypatch):
     install_virtual_time(monkeypatch, clock)
     fake = gold_terminal_with_live_tick()
     controller, _connection, _settings = await build_controller(
-        fake, auto_trade_max_cycles=5
+        fake, auto_trade_entry_offset=1.00, auto_trade_break_even_offset=0.40, auto_trade_trailing_distance=0.40, auto_trade_max_cycles=5
     )
     # make first entry submission rejected
     fake.order_send_results = [FakeOrderResult(retcode=10016, comment="invalid stops")]

@@ -385,7 +385,7 @@ export interface AutoTradingStatus {
   magic_number: number | null;
 
   strategy_phase?: string | null;
-  /** Active instrument profile (`XAUUSD` / `BTCUSD`) the backend resolved. */
+  /** Active instrument profile (always `XAUUSD`). */
   profile?: string | null;
   /** True while the live spread is above the configured maximum. */
   spread_blocked?: boolean;
@@ -406,4 +406,20 @@ export interface AutoTradingStatus {
   break_even_level?: number | null;
   last_processed_deal?: unknown;
   previous_cycle_complete?: boolean;
+
+  worker_heartbeat?: number | null;
+  heartbeat?: number | null;
+  last_heartbeat?: number | null;
+  mt5_connected?: boolean;
+  mt5_connectivity?: boolean;
+  mt5_query_ok?: boolean;
+  mt5_query_error?: string | null;
+  pending_order_count?: number;
+  pending_orders?: number;
+  open_position_count?: number;
+  open_positions?: number;
+  last_order_attempt?: string | null;
+  last_broker_result?: string | null;
+  last_result?: string | null;
+  active_profile?: string | null;
 }

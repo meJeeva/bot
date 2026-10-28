@@ -1,18 +1,20 @@
 """Pure value/trailing calculations for the M1 stop-order strategy.
 
 Every offset in this module is an **absolute price difference in the
-configured instrument's own price units** (XAUUSD by default, BTCUSD on the
-crypto deployment), never a pip, point or broker tick.  Prices are normalised
+configured instrument's own price units** (XAUUSD), never a pip, point or
+broker tick.  Prices are normalised
 to the symbol's own tick size only at the edge (when an MT5 request is built);
 the arithmetic itself is kept exact so the required offsets cannot silently
 change.
 
 The formulas are instrument-independent - with the configured entry offset E,
-break-even activation B and trailing distance T, and R the market reference
-captured for the cycle:
+the optional side-specific buy/sell entry offsets Eb/Es (each defaulting to
+E), the optional initial stop-loss distance D (defaulting to E), break-even
+activation B and trailing distance T, and R the market reference captured for
+the cycle:
 
-* Buy entry  = R + E, initial Buy SL  = R
-* Sell entry = R - E, initial Sell SL = R
+* Buy entry  = R + Eb, initial Buy SL  = Buy entry - D
+* Sell entry = R - Es, initial Sell SL = Sell entry + D
 * Buy break-even activation  = Buy entry + B
 * Buy trailing stop          = highest favourable price - T
 * Sell break-even activation = Sell entry - B
@@ -28,9 +30,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-#: Required absolute entry offset for the DEFAULT instrument (XAUUSD).  Do
+#: Required absolute entry offset for the default instrument (XAUUSD).  Do
 #: not reinterpret as a pip/point.  The controller uses the configured
-#: ``AUTO_TRADE_ENTRY_OFFSET`` instead whenever one is set (required for BTCUSD).
+#: ``AUTO_TRADE_ENTRY_OFFSET`` whenever one is set.
 PRICE_OFFSET = 1.0
 
 #: Break-even activation offset applied after entry.
@@ -117,28 +119,39 @@ def build_cycle_levels(
     tick_size: float | None = None,
     digits: int | None = None,
     entry_offset: float | None = None,
+    *,
+    buy_entry_offset: float | None = None,
+    sell_entry_offset: float | None = None,
+    initial_sl_distance: float | None = None,
 ) -> CycleLevels:
     """Calculate the Phase 1 levels for a new cycle.
 
     ``entry_offset`` is the configured absolute entry distance; the module
     default (``PRICE_OFFSET``) applies only when the caller passes nothing.
+    ``buy_entry_offset``/``sell_entry_offset`` override the entry distance for
+    one side, and ``initial_sl_distance`` places each initial stop at its own
+    distance from that side's entry. All three default to ``entry_offset``,
+    which reproduces the original symmetric levels exactly.
     """
     offset = PRICE_OFFSET if entry_offset is None else float(entry_offset)
+    buy_offset = offset if buy_entry_offset is None else float(buy_entry_offset)
+    sell_offset = offset if sell_entry_offset is None else float(sell_entry_offset)
+    sl_distance = offset if initial_sl_distance is None else float(initial_sl_distance)
     ref = normalize_price(reference, tick_size, digits)
     if ref is None:
         raise ValueError("A finite market reference value is required")
-    buy_entry = normalize_price(ref + offset, tick_size, digits)
-    sell_entry = normalize_price(ref - offset, tick_size, digits)
+    buy_entry = normalize_price(ref + buy_offset, tick_size, digits)
+    sell_entry = normalize_price(ref - sell_offset, tick_size, digits)
     # Initial protective stops are derived from each entry's own price, not
     # from the cycle reference, so an entry that differs from the reference
     # by more than the configured offset keeps that difference in its SL.
     initial_buy_sl = normalize_price(
-        (buy_entry if buy_entry is not None else ref + offset) - offset,
+        (buy_entry if buy_entry is not None else ref + buy_offset) - sl_distance,
         tick_size,
         digits,
     )
     initial_sell_sl = normalize_price(
-        (sell_entry if sell_entry is not None else ref - offset) + offset,
+        (sell_entry if sell_entry is not None else ref - sell_offset) + sl_distance,
         tick_size,
         digits,
     )

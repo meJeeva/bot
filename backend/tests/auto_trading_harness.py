@@ -116,6 +116,12 @@ def instrument_orders(
     return original
 
 
+async def _run_until_pending(controller, clock, fake, steps=20):
+    for _ in range(steps):
+        clock.advance(0.2)
+        await asyncio.sleep(0.05)
+
+
 async def wait_for(predicate: Callable[[], bool], timeout: float = 10.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

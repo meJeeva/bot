@@ -168,165 +168,32 @@ class TestEnvironmentLoading:
 
 
 class TestProfileSelection:
-    """`AUTO_TRADE_PROFILE` alone selects the instrument and its parameters.
+    """XAUUSD is the only supported instrument profile."""
 
-    Both profile blocks live in `.env` at the same time; only the selected one
-    may influence the active configuration, and legacy `MT5_SYMBOL` /
-    `AUTO_TRADE_SYMBOL` settings stay optional.
-    """
-
-    ENV_FILE = "\n".join(
-        [
-            "APP_READ_ONLY=True",
-            "TRADING_MODE=demo",
-            "DATABASE_ENABLED=False",
-            "AUTO_TRADE_PROFILE={profile}",
-            "XAUUSD_MT5_SYMBOL=XAUUSD",
-            "XAUUSD_MT5_SYMBOL_CANDIDATES=XAUUSD,XAUUSD.,XAUUSDm,XAUUSD.c,#XAUUSD",
-            "XAUUSD_TIMEFRAME=M1",
-            "XAUUSD_ENTRY_OFFSET=1.00",
-            "XAUUSD_BREAK_EVEN_OFFSET=0.20",
-            "XAUUSD_TRAILING_DISTANCE=0.20",
-            "XAUUSD_LOT_SIZE=0.01",
-            "XAUUSD_MAX_SPREAD_POINTS=100",
-            "XAUUSD_MAX_ENTRY_DEVIATION_POINTS=20",
-            "BTCUSD_MT5_SYMBOL=BTCUSD",
-            "BTCUSD_MT5_SYMBOL_CANDIDATES=BTCUSD,BTCUSDm,BTCUSD.c,#BTCUSD,BTCUSD.",
-            "BTCUSD_TIMEFRAME=M1",
-            "BTCUSD_ENTRY_OFFSET=15.0",
-            "BTCUSD_BREAK_EVEN_OFFSET=4.0",
-            "BTCUSD_TRAILING_DISTANCE=4.0",
-            "BTCUSD_LOT_SIZE=1.0",
-            "BTCUSD_MAX_SPREAD_POINTS=100",
-            "BTCUSD_MAX_ENTRY_DEVIATION_POINTS=20",
-            "",
-        ]
-    )
-
-    EXPECTED = {
-        "XAUUSD": dict(
-            symbol="XAUUSD",
-            candidates="XAUUSD,XAUUSD.,XAUUSDm,XAUUSD.c,#XAUUSD",
-            entry_offset=1.0,
-            break_even_offset=0.20,
-            trailing_distance=0.20,
-            lot_size=0.01,
-        ),
-        "BTCUSD": dict(
-            symbol="BTCUSD",
-            candidates="BTCUSD,BTCUSDm,BTCUSD.c,#BTCUSD,BTCUSD.",
-            entry_offset=15.0,
-            break_even_offset=4.0,
-            trailing_distance=4.0,
-            lot_size=1.0,
-        ),
-    }
-
-    @staticmethod
-    def write_env_file(tmp_path, profile: str):
-        path = tmp_path / f"{profile.lower()}.env"
-        path.write_text(
-            TestProfileSelection.ENV_FILE.format(profile=profile), encoding="utf-8"
-        )
-        return path
-
-    def test_profile_switch_selects_its_own_block(self, tmp_path):
-        for profile, expected in self.EXPECTED.items():
-            settings = Settings(_env_file=self.write_env_file(tmp_path, profile))
-
-            assert settings.auto_trade_profile == profile
-            # The active instrument follows the profile on both the market-data
-            # side (mt5_symbol) and the strategy side.
-            assert settings.mt5_symbol == expected["symbol"]
-            assert settings.auto_trade_symbol == expected["symbol"]
-            assert settings.mt5_symbol_candidates == expected["candidates"]
-            assert settings.auto_trade_timeframe == "M1"
-            assert settings.auto_trade_entry_offset == expected["entry_offset"]
-            assert settings.auto_trade_break_even_offset == expected["break_even_offset"]
-            assert settings.auto_trade_trailing_distance == expected["trailing_distance"]
-            assert settings.auto_trade_lot_size == expected["lot_size"]
-            assert settings.auto_trade_max_spread_points == 100.0
-            assert settings.auto_trade_max_entry_deviation_points == 20
-
-    def test_inactive_profile_block_never_leaks(self, tmp_path):
-        btc = Settings(_env_file=self.write_env_file(tmp_path, "BTCUSD"))
-        xau = Settings(_env_file=self.write_env_file(tmp_path, "XAUUSD"))
-
-        # The two blocks differ, so a leak in either direction is visible.
-        assert btc.auto_trade_entry_offset != xau.auto_trade_entry_offset
-        assert btc.auto_trade_lot_size != xau.auto_trade_lot_size
-        assert btc.mt5_symbol != xau.mt5_symbol
-
-    def test_switching_profile_needs_no_legacy_symbol_edit(self, tmp_path):
-        """Only AUTO_TRADE_PROFILE changes between the two loads."""
-        for profile in self.EXPECTED:
-            settings = Settings(_env_file=self.write_env_file(tmp_path, profile))
-            assert settings.auto_trade_symbol == self.EXPECTED[profile]["symbol"]
-
-    def test_omitted_legacy_symbol_does_not_conflict_with_the_profile(self):
-        """The historical XAUUSD MT5_SYMBOL default is not operator intent."""
-        settings = build(
-            auto_trade_profile="BTCUSD",
-            btcusd_symbol="BTCUSD",
-            btcusd_entry_offset=15.0,
-            btcusd_break_even_offset=4.0,
-            btcusd_trailing_distance=4.0,
-            btcusd_lot_size=1.0,
-        )
-
-        assert settings.auto_trade_profile == "BTCUSD"
-        assert settings.mt5_symbol == "BTCUSD"
-        assert settings.auto_trade_symbol == "BTCUSD"
-        assert settings.auto_trade_entry_offset == 15.0
-        assert settings.auto_trade_lot_size == 1.0
-
-    def test_omitted_legacy_symbol_uses_the_xauusd_defaults(self):
+    def test_xauusd_profile_is_accepted(self):
         settings = build(auto_trade_profile="XAUUSD")
-
+        assert settings.auto_trade_profile == "XAUUSD"
         assert settings.mt5_symbol == "XAUUSD"
         assert settings.auto_trade_symbol == "XAUUSD"
-        assert settings.auto_trade_entry_offset == 1.0
-        assert settings.auto_trade_break_even_offset == 0.40
-        assert settings.auto_trade_trailing_distance == 0.40
-        assert settings.auto_trade_lot_size == 0.01
-
-    @pytest.mark.parametrize("legacy", ["auto_trade_symbol", "mt5_symbol"])
-    def test_explicit_conflicting_legacy_symbol_is_rejected(self, legacy):
-        overrides = {
-            "auto_trade_profile": "BTCUSD",
-            "btcusd_symbol": "BTCUSD",
-            "btcusd_entry_offset": 15.0,
-            "btcusd_break_even_offset": 4.0,
-            "btcusd_trailing_distance": 4.0,
-            "btcusd_lot_size": 1.0,
-            legacy: "XAUUSD",
-        }
-
-        with pytest.raises(ValidationError) as info:
-            build(**overrides)
-
-        message = str(info.value)
-        assert "different instruments" in message
-        assert "XAUUSD" in message
-
-    def test_explicit_matching_legacy_symbol_is_accepted(self):
-        settings = build(
-            auto_trade_profile="BTCUSD",
-            auto_trade_symbol="BTCUSD",
-            btcusd_entry_offset=15.0,
-            btcusd_break_even_offset=4.0,
-            btcusd_trailing_distance=4.0,
-            btcusd_lot_size=1.0,
-        )
-
-        assert settings.mt5_symbol == "BTCUSD"
-        assert settings.auto_trade_symbol == "BTCUSD"
 
     def test_unknown_profile_is_rejected(self):
         with pytest.raises(ValidationError) as info:
             build(auto_trade_profile="ETHUSD")
         assert "AUTO_TRADE_PROFILE" in str(info.value)
 
+    def test_btcusd_profile_is_rejected(self):
+        with pytest.raises(ValidationError) as info:
+            build(auto_trade_profile="BTCUSD")
+        assert "AUTO_TRADE_PROFILE" in str(info.value)
+
+    def test_omitted_legacy_symbol_uses_the_xauusd_defaults(self):
+        settings = build(auto_trade_profile="XAUUSD")
+        assert settings.mt5_symbol == "XAUUSD"
+        assert settings.auto_trade_symbol == "XAUUSD"
+        assert settings.auto_trade_entry_offset == 0.20
+        assert settings.auto_trade_break_even_offset == 0.20
+        assert settings.auto_trade_trailing_distance == 0.20
+        assert settings.auto_trade_lot_size == 0.01
 
 class TestSecretHygiene:
     def test_safe_summary_never_exposes_credentials(self):

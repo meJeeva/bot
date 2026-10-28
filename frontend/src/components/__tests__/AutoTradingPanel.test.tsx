@@ -119,4 +119,44 @@ describe('AutoTradingPanel', () => {
     expect(screen.getByTestId('auto-profit')).toHaveTextContent('-1.25');
     expect(screen.getByTestId('auto-position-ticket')).toHaveTextContent('#5001');
   });
+
+  it('allows Stop while the worker is WAITING for an entry', () => {
+    render(
+      <AutoTradingPanel
+        {...baseProps({
+          status: makeAutoTradingStatus({ status: 'WAITING' }),
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('start-auto-trading')).toBeDisabled();
+    expect(screen.getByTestId('stop-auto-trading')).toBeEnabled();
+  });
+
+  it('keeps the Start/Stop labels visible in the WAITING state', () => {
+    render(
+      <AutoTradingPanel
+        {...baseProps({
+          status: makeAutoTradingStatus({
+            status: 'WAITING',
+            last_entry_result: 'buy Stop confirmed ticket 149020444',
+            last_exit_result:
+              'stop-loss hit for bbfda946-6b56-4a18-ac86-a326d0039268-53 (side=sell, ticket=148935919, deal=104630459)',
+          }),
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('start-auto-trading')).toHaveTextContent('Start Auto Trading');
+    expect(screen.getByTestId('stop-auto-trading')).toHaveTextContent('Stop Auto Trading');
+    expect(screen.getByTestId('auto-last-entry')).toHaveTextContent('buy Stop confirmed ticket 149020444');
+    expect(screen.getByTestId('auto-last-exit')).toHaveTextContent('stop-loss hit');
+  });
+
+  it('keeps the labels visible while loading/disabled', () => {
+    render(<AutoTradingPanel {...baseProps({ busy: true })} />);
+
+    expect(screen.getByTestId('start-auto-trading')).toHaveTextContent('Start Auto Trading');
+    expect(screen.getByTestId('stop-auto-trading')).toHaveTextContent('Stop Auto Trading');
+  });
 });
