@@ -247,6 +247,29 @@ class StopOrderCheck:
         return self.outcome == ENTRY_VALID
 
 
+@dataclass(frozen=True)
+class StopMoveValidation:
+    """The result of validating one SLTP modification against a fresh tick.
+
+    ``ok`` means the request may be submitted using the tick observed right
+    here. ``reason`` names the exact current condition that blocks the
+    request; the caller defers instead of submitting and preserves the
+    broker's existing stop.
+    """
+
+    position: Any | None = None
+    bid: float | None = None
+    ask: float | None = None
+    tick_time: Any = None
+    stops_points: int = 0
+    freeze_points: int = 0
+    reason: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.position is not None and self.reason is None
+
+
 def check_stop_order(
     side: str,
     price: float,
@@ -419,6 +442,7 @@ class AutoTradingController:
         self._side_removed = {SIDE_BUY: False, SIDE_SELL: False}
         self._orders_missing_since: float | None = None
         self._order_retry_at = {SIDE_BUY: 0.0, SIDE_SELL: 0.0}
+        self._missed_entry_since: float | None = None
 
         # Active position and protective stop
         self._active_side: str | None = None
@@ -508,7 +532,7 @@ class AutoTradingController:
         )
 
         # Configured strategy distances (absolute price units of the configured
-        # instrument; the entry offset is required explicitly for BTCUSD).
+        # instrument).
         self._break_even_offset = float(
             getattr(settings, "auto_trade_break_even_offset", 0.40)
         )
@@ -538,6 +562,11 @@ class AutoTradingController:
         self._rejected_sl_level: float | None = None
         self._worker_state: str = "STOPPED"
 
+        # High-resolution profiling (opt-in via AUTO_TRADE_PROFILE_TIMING).
+        self._profiling_enabled = bool(
+            getattr(settings, "auto_trade_profile_timing", False)
+        )
+        self._profile_intent_seq = 0
     # ------------------------------------------------------------------
     # Small utilities
     # ------------------------------------------------------------------
@@ -547,6 +576,35 @@ class AutoTradingController:
     async def _sleep(self, seconds: float) -> None:
         await asyncio.sleep(max(0.0, seconds))
 
+    def _profiling(self) -> bool:
+        return bool(self._profiling_enabled)
+
+    def _next_intent_id(self, side: str, attempt: int | None = None) -> str:
+        self._profile_intent_seq += 1
+        return f"{self._current_cycle_id or 'cycle'}:{side}:{self._profile_intent_seq if attempt is None else attempt}"
+
+    def _profile_stage(
+        self,
+        stage: str,
+        start_ns: int,
+        *,
+        side: str | None = None,
+        intent_id: str | None = None,
+        extra: str | None = None,
+    ) -> None:
+        if not self._profiling_enabled:
+            return
+        elapsed_us = (time.perf_counter_ns() - start_ns) / 1000.0
+        logger.debug(
+            "PROFILE cycle=%s intent=%s side=%s stage=%s elapsed_us=%.1f ts=%s%s",
+            self._current_cycle_id,
+            intent_id,
+            side,
+            stage,
+            elapsed_us,
+            _utcnow().isoformat(),
+            ("" if extra is None else " " + extra),
+        )
     def _poll_seconds(self) -> float:
         try:
             configured = int(getattr(self.settings, "auto_trade_poll_interval_ms", 200))
@@ -915,10 +973,12 @@ class AutoTradingController:
         store = self.store
         if store is None:
             return
+        _db_start_ns = time.perf_counter_ns()
         try:
             await asyncio.to_thread(store.record_trade, trade)
         except Exception as exc:  # noqa: BLE001 - persistence must not break execution
             logger.warning("Trade record failed: %s", exc)
+        self._profile_stage("db_trade_record", _db_start_ns, extra=f"event={trade.get('status')}")
 
     async def _record_trade_event(self, event_type: str, **kwargs: Any) -> None:
         store = self.store
@@ -1421,8 +1481,10 @@ class AutoTradingController:
         return result
 
     async def _refresh_mt5_state(self) -> None:
+        _refresh_start_ns = time.perf_counter_ns()
         positions = self._strategy_positions(await self._get_positions())
         orders = self._strategy_orders(await self._get_orders())
+        self._profile_stage("mt5_reconciliation", _refresh_start_ns, extra=f"positions={len(positions)} orders={len(orders)}")
         self._open_position_count = len(positions)
         self._pending_order_count = len(orders)
         self._position = positions[-1] if len(positions) == 1 else None
@@ -1495,6 +1557,7 @@ class AutoTradingController:
 
     async def _history_deals_for(self, position_ticket: int) -> list[Any] | None:
         """Return the deal history for one position, or ``None`` if unavailable."""
+        _history_start_ns = time.perf_counter_ns()
         mt5 = self.connection.mt5
         getter = getattr(mt5, "history_deals_get", None)
         if getter is None:
@@ -1530,6 +1593,7 @@ class AutoTradingController:
                 position_id = _get_attr(deal, "position", None)
             if position_id is None or int(position_id) == int(position_ticket):
                 matched.append(deal)
+        self._profile_stage("history_deals_scan", _history_start_ns, extra=f"deals={len(matched)}")
         return matched
 
     @staticmethod
@@ -2070,7 +2134,10 @@ class AutoTradingController:
 
     async def _initialize_cycle(self, quote: Any) -> None:
         _cycle_started_at = self._now()
+        _cycle_start_ns = time.perf_counter_ns()
+        _ref_start_ns = time.perf_counter_ns()
         reference = self._reference_price(quote)
+        self._profile_stage("reference_price", _ref_start_ns, extra=f"reference={reference}")
         if reference is None or reference <= 0:
             self._note_error("Cannot initialise a cycle without a valid market price")
             return
@@ -2082,9 +2149,10 @@ class AutoTradingController:
         self._cycle_counter += 1
         self._current_cycle_id = f"{self._session_id}-{self._cycle_counter}"
         await self._record_trade_event("cycle_initialized", price=reference)
+        _levels_start_ns = time.perf_counter_ns()
         levels = self._build_levels(reference)
         self._set_levels(levels)
-
+        self._profile_stage("entry_sl_calculation", _levels_start_ns, extra=f"buy_entry={levels.buy_entry} sell_entry={levels.sell_entry}")
         self._active_side = None
         self._position_ticket = None
         self._position_type = None
@@ -2141,6 +2209,7 @@ class AutoTradingController:
         await self._ensure_pending_order(SIDE_SELL, quote)
         await self._persist_state(force=True)
         await self._record_trade_event("switching_completed", price=reference)
+        self._profile_stage("cycle_init_total", _cycle_start_ns, extra=f"reference={reference}")
         logger.info(
             "CYCLE_TIMING cycle=%s elapsed_ms=%.1f reference=%s buy_entry=%s sell_entry=%s quote_bid=%s quote_ask=%s",
             self._current_cycle_id,
@@ -2171,8 +2240,41 @@ class AutoTradingController:
             await self._cancel_pending_order(self._buy_order_ticket, SIDE_BUY, reason="sell side reached")
 
         # Place (or re-confirm) an entry that has not been submitted yet.
-        await self._ensure_pending_order(SIDE_BUY, quote)
-        await self._ensure_pending_order(SIDE_SELL, quote)
+        buy_submitted = await self._ensure_pending_order(SIDE_BUY, quote)
+        sell_submitted = await self._ensure_pending_order(SIDE_SELL, quote)
+
+        # Safe recovery from repeated missed entries: if neither side could be
+        # armed because the market already crossed both intended levels, abandon
+        # the stale cycle only after the configured exit buffer and reinitialise
+        # from the live price. This never chases a crossed price or reuses an
+        # expired intent.
+        both_missed = (
+            self._buy_order_ticket is None
+            and self._sell_order_ticket is None
+            and self._active_side is None
+            and self._position_ticket is None
+            and (
+                (not buy_submitted and not sell_submitted)
+                or ("ENTRY_MISSED" in str(self._last_entry_result or ""))
+            )
+        )
+        if both_missed:
+            if self._missed_entry_since is None:
+                self._missed_entry_since = self._now()
+            elif (
+                self._now() - self._missed_entry_since
+                >= float(self.settings.auto_trade_exit_buffer_seconds or 2)
+            ):
+                logger.info(
+                    "Reinitialising cycle after missed entry: cycle=%s buffer=%s",
+                    self._current_cycle_id,
+                    self.settings.auto_trade_exit_buffer_seconds,
+                )
+                self._missed_entry_since = None
+                await self._initialize_cycle(quote)
+                return
+        else:
+            self._missed_entry_since = None
 
         # Both pending entries disappearing without a position is an
         # inconsistent broker state. Never guess: only re-initialise after the
@@ -2190,7 +2292,9 @@ class AutoTradingController:
             await self._initialize_cycle(quote)
 
     async def _ensure_pending_order(self, side: str, quote: Any) -> bool:
-        logger.info(
+        _intent_id = self._next_intent_id(side)
+        _entry_start_ns = time.perf_counter_ns()
+        logger.debug(
             "ENTRY_INTENT cycle=%s side=%s phase=%s side_removed=%s active_side=%s "
             "buy_ticket=%s sell_ticket=%s level=%s sl=%s",
             self._current_cycle_id,
@@ -2268,6 +2372,25 @@ class AutoTradingController:
         _ENTRY_MAX_ATTEMPTS = 3
         _TRANSIENT_RETCODES = {10004, 10006, 10020, 10021, 10031}
 
+        # Broker symbol metadata (tick size, stops/freeze levels) is stable for
+        # the resolved symbol, so it is read once per entry intent instead of
+        # on every retry attempt.
+        mt5 = self.connection.mt5
+        _meta_start_ns = time.perf_counter_ns()
+        info = await self.connection.acall(mt5.symbol_info, self._resolved_symbol())
+        self._adopt_price_metadata(info)
+        self._profile_stage("symbol_metadata", _meta_start_ns, side=side, extra=f"stops_level={_get_attr(info, 'trade_stops_level', None)} freeze_level={_get_attr(info, 'trade_freeze_level', None)}")
+        point_value = _get_attr(info, "point", None) or self._tick_size
+        try:
+            point_value = float(point_value) if point_value is not None else None
+        except (TypeError, ValueError):
+            point_value = None
+        stops_level = _get_attr(info, "trade_stops_level", None)
+        freeze_level = _get_attr(info, "trade_freeze_level", None)
+        try:
+            stops_value = int(stops_level) if stops_level is not None else 0
+        except (TypeError, ValueError):
+            stops_value = 0
         for _attempt in range(1, _ENTRY_MAX_ATTEMPTS + 1):
             # Reconcile before every attempt so a delayed response can never
             # cause a duplicate order.
@@ -2294,9 +2417,11 @@ class AutoTradingController:
                 self._last_error = "Market prices are unavailable or stale"
                 return False
 
+            _spread_start_ns = time.perf_counter_ns()
             spread = self._evaluate_spread(
                 fresh_quote, context=f"{side.upper()} Stop submission"
             )
+            self._profile_stage("spread_validation", _spread_start_ns, side=side, intent_id=_intent_id, extra=f"outcome={spread.outcome}")
             if spread.outcome != SPREAD_OK:
                 self._last_error = spread.reason()
                 logger.info("ENTRY_BLOCKED %s: %s", side.upper(), spread.reason())
@@ -2308,23 +2433,7 @@ class AutoTradingController:
             if level is None or stop_loss is None:
                 return False
 
-            mt5 = self.connection.mt5
-            info = await self.connection.acall(mt5.symbol_info, self._resolved_symbol())
-            # Re-read the broker's price granularity on every attempt: prices
-            # are normalised to SYMBOL_TRADE_TICK_SIZE (never to a decimal
-            # count captured at some earlier moment).
-            self._adopt_price_metadata(info)
-            point_value = _get_attr(info, "point", None) or self._tick_size
-            try:
-                point_value = float(point_value) if point_value is not None else None
-            except (TypeError, ValueError):
-                point_value = None
-            stops_level = _get_attr(info, "trade_stops_level", None)
-            freeze_level = _get_attr(info, "trade_freeze_level", None)
-            try:
-                stops_value = int(stops_level) if stops_level is not None else 0
-            except (TypeError, ValueError):
-                stops_value = 0
+            # Broker metadata was read once before this retry loop.
             price = self._norm(level)
             sl = self._norm(stop_loss)
             if price is None or sl is None:
@@ -2333,7 +2442,9 @@ class AutoTradingController:
             # A brand-new tick, read immediately before validating: a cached
             # monitor quote is exactly what turns an aggressive XAUUSD move
             # into "retcode=10015 comment=Invalid price".
+            _tick_start_ns = time.perf_counter_ns()
             tick = await self._read_live_tick()
+            self._profile_stage("fresh_tick", _tick_start_ns, side=side, intent_id=_intent_id, extra=f"usable={'yes' if tick is not None else 'no'}")
             quote_source = "mt5 tick"
             if tick is None:
                 tick = fresh_quote
@@ -2352,6 +2463,7 @@ class AutoTradingController:
                 return False
             tick_time = _get_attr(tick, "time", None)
 
+            _gate_start_ns = time.perf_counter_ns()
             gate = check_stop_order(
                 side,
                 price,
@@ -2361,6 +2473,7 @@ class AutoTradingController:
                 point=point_value,
                 stops_level=stops_value,
             )
+            self._profile_stage("entry_validation", _gate_start_ns, side=side, intent_id=_intent_id, extra=f"outcome={gate.outcome}")
             if not gate.ok:
                 # Reconcile before deciding: a delayed broker response must
                 # never turn a rejection into a duplicate order.
@@ -2408,6 +2521,7 @@ class AutoTradingController:
             check_comment = "order_check unavailable"
             checker = getattr(mt5, "order_check", None)
             if checker is not None:
+                _order_check_start_ns = time.perf_counter_ns()
                 try:
                     check_result = await self.connection.acall(checker, request)
                 except Exception as exc:  # noqa: BLE001
@@ -2415,6 +2529,7 @@ class AutoTradingController:
                     check_exc = exc
                 else:
                     check_exc = None
+                self._profile_stage("order_check", _order_check_start_ns, side=side, intent_id=_intent_id, extra=f"retcode={_get_attr(check_result, 'retcode', None) if check_exc is None else 'exc'}")
                 if check_exc is not None:
                     check_comment = "order_check raised an exception"
                     logger.warning("ORDER_CHECK_FAILED %s: %s", side.upper(), check_exc)
@@ -2472,7 +2587,9 @@ class AutoTradingController:
 
             # The market can also move between order_check and order_send.
             # Read one more tick and send only while the request is still valid.
+            _final_tick_start_ns = time.perf_counter_ns()
             pre_send_tick = await self._read_live_tick() or fresh_quote
+            self._profile_stage("final_revalidation_tick", _final_tick_start_ns, side=side, intent_id=_intent_id, extra="pre_send")
             pre_bid, pre_ask = self._market_bid_ask(pre_send_tick)
             if pre_bid is None or pre_ask is None:
                 if await self._reconcile_entry(side):
@@ -2483,6 +2600,7 @@ class AutoTradingController:
                     f"{side.upper()} Stop not submitted: Bid/Ask unavailable before order_send"
                 )
                 return False
+            _final_gate_start_ns = time.perf_counter_ns()
             pre_gate = check_stop_order(
                 side,
                 price,
@@ -2492,6 +2610,7 @@ class AutoTradingController:
                 point=point_value,
                 stops_level=stops_value,
             )
+            self._profile_stage("final_revalidation", _final_gate_start_ns, side=side, intent_id=_intent_id, extra=f"outcome={pre_gate.outcome}")
             if not pre_gate.ok:
                 if await self._reconcile_entry(side):
                     return True
@@ -2573,8 +2692,11 @@ class AutoTradingController:
             await self._record_trade_event("entry_submitted", price=price, details=side.upper())
             self._last_order_attempt = f"{side.upper()} Stop cycle={self._current_cycle_id}"
             try:
+                _order_send_start_ns = time.perf_counter_ns()
                 result = await self.connection.acall(mt5.order_send, request)
+                self._profile_stage("order_send", _order_send_start_ns, side=side, intent_id=_intent_id, extra=f"retcode={_get_attr(result, 'retcode', None)}")
             except Exception as exc:  # noqa: BLE001 - confirm before retrying
+                self._profile_stage("order_send", _order_send_start_ns, side=side, intent_id=_intent_id, extra=f"exception={type(exc).__name__}")
                 await self._refresh_mt5_state()
                 confirmed = await self._find_confirmed_entry(side)
                 if confirmed is not None:
@@ -2692,7 +2814,9 @@ class AutoTradingController:
                 return False
 
             expected_ticket = _get_attr(result, "order", None)
+            _confirm_start_ns = time.perf_counter_ns()
             confirmed = await self._wait_for_confirmed_entry(side, expected_ticket)
+            self._profile_stage("broker_confirmation", _confirm_start_ns, side=side, intent_id=_intent_id, extra=f"confirmed={'yes' if confirmed is not None else 'no'}")
             if confirmed is None:
                 logger.warning(
                     "ENTRY_EXPIRED_OR_CANCELLED %s: order accepted but not confirmed",
@@ -2896,6 +3020,7 @@ class AutoTradingController:
     # Active position management (break-even trailing)
     # ------------------------------------------------------------------
     async def _manage_active_position(self, quote: Any) -> None:
+        _be_start_ns = time.perf_counter_ns()
         position = self._position
         if position is None or self._active_side is None:
             return
@@ -3018,7 +3143,7 @@ class AutoTradingController:
 
         if changed:
             await self._persist_state()
-
+        self._profile_stage("break_even_trailing", _be_start_ns, side=side, extra=f"changed={changed}")
     async def _effective_trailing_distance(self) -> float:
         cap = float(self._trailing_distance)
         if self._trailing_mode != "atr":
@@ -3059,6 +3184,168 @@ class AutoTradingController:
         if side == SIDE_BUY:
             return target > self._current_sl + tolerance
         return target < self._current_sl - tolerance
+
+    async def _validate_stop_target(
+        self, position_ticket: int, side: str, target: float
+    ) -> StopMoveValidation:
+        """Re-check a pending stop against current broker and market state.
+
+        Called immediately before any SLTP modification is submitted:
+
+        * the position must still exist under the same ticket;
+        * the broker's stop/freeze restrictions are re-read from the symbol
+          - they are reported in points, converted into the symbol's own
+          price units, and never assumed from an earlier read;
+        * a brand-new tick is read and the proposed stop is validated on the
+          market side that would execute it: the Bid for a BUY position, the
+          Ask for a SELL position.
+
+        ``reason`` names exactly why the current data makes the request
+        invalid. A deferred request is never submitted, so the broker's
+        existing protective stop is preserved untouched.
+        """
+        symbol = self._resolved_symbol()
+        positions = self._strategy_positions(await self._get_positions())
+        fresh: Any | None = None
+        for candidate in positions:
+            if _get_attr(candidate, "ticket", None) == position_ticket:
+                fresh = candidate
+        if fresh is None:
+            reason = (
+                f"position {position_ticket} is no longer open; nothing to modify"
+            )
+            logger.info("Stop move not submitted: %s", reason)
+            self._last_broker_result = f"SLTP not submitted: {reason}"
+            return StopMoveValidation(reason=reason)
+
+        mt5 = self.connection.mt5
+        try:
+            info = await self.connection.acall(mt5.symbol_info, symbol)
+        except Exception:  # noqa: BLE001 - defer, never send blind
+            info = None
+        self._adopt_price_metadata(info)
+        point_value = _get_attr(info, "point", None) if info is not None else None
+        if point_value is None:
+            point_value = self._tick_size
+        try:
+            point_value = float(point_value) if point_value is not None else None
+        except (TypeError, ValueError):
+            point_value = None
+
+        def _level(attr: str) -> int:
+            raw = _get_attr(info, attr, None) if info is not None else None
+            try:
+                return max(0, int(raw))
+            except (TypeError, ValueError):
+                return 0
+
+        stops_points = _level("trade_stops_level")
+        freeze_points = _level("trade_freeze_level")
+        required_gap = 0.0
+        freeze_gap = 0.0
+        if point_value is not None and point_value > 0:
+            required_gap = stops_points * point_value
+            freeze_gap = freeze_points * point_value
+
+        # A brand-new tick: a cached quote read while the market is moving is
+        # exactly what turns an untouched-but-valid request into ``10016
+        # Invalid stops`` between validation and submission.
+        tick = await self._read_live_tick()
+        bid: float | None
+        ask: float | None
+        if tick is not None:
+            bid, ask = self._market_bid_ask(tick)
+        else:
+            bid, ask = None, None
+        tick_time = _get_attr(tick, "time", None) if tick is not None else None
+
+        def _defer(reason: str) -> StopMoveValidation:
+            result = StopMoveValidation(
+                position=fresh,
+                bid=bid,
+                ask=ask,
+                tick_time=tick_time,
+                stops_points=stops_points,
+                freeze_points=freeze_points,
+                reason=reason,
+            )
+            logger.info(
+                "Stop move deferred: ticket=%s side=%s desired_sl=%s bid=%s "
+                "ask=%s tick_time=%s stops_level=%s freeze_level=%s - %s",
+                position_ticket,
+                side.upper(),
+                target,
+                bid,
+                ask,
+                tick_time,
+                stops_points,
+                freeze_points,
+                reason,
+            )
+            self._last_broker_result = f"SLTP deferred: {reason}"
+            return result
+
+        if bid is None or ask is None:
+            return _defer(
+                f"no usable Bid/Ask for {symbol} to validate the stop against"
+            )
+
+        broker_sl = _get_attr(fresh, "sl", None)
+        broker_value: float | None = None
+        if broker_sl is not None:
+            try:
+                broker_value = float(broker_sl)
+            except (TypeError, ValueError):
+                broker_value = None
+        # Reconcile the tracked level with the broker's actual stop so later
+        # idempotency and protection checks use the real stored value.
+        if broker_value is not None and broker_value > 0:
+            self._current_sl = broker_value
+
+        market = bid if side == SIDE_BUY else ask
+        # Freeze zone: while the position's current stop sits within the
+        # freeze distance of the market, the broker will not process an
+        # SLTP modification at all.
+        if broker_value is not None and broker_value > 0 and freeze_gap > 0.0:
+            freeze_distance = abs(market - broker_value)
+            if freeze_distance <= freeze_gap + _SLACK:
+                return _defer(
+                    f"the broker's current SL {broker_value:g} sits only "
+                    f"{freeze_distance:g} price units from the "
+                    f"{'Bid' if side == SIDE_BUY else 'Ask'} {market:g}; "
+                    f"SLTP modifications are frozen within {freeze_gap:g} "
+                    f"(freeze_level={freeze_points} point={point_value})"
+                )
+
+        # Side check: a BUY stop closes out at the Bid, so it must sit below
+        # the Bid; a SELL stop closes out at the Ask, so it must sit above it.
+        market_word = "Bid" if side == SIDE_BUY else "Ask"
+        if side == SIDE_BUY:
+            gap = float(bid) - float(target)
+        else:
+            gap = float(target) - float(ask)
+        if gap <= _SLACK:
+            return _defer(
+                f"the proposed SL {target:g} is {gap:g} price units from the "
+                f"current {market_word} {market:g}; a {side.upper()} stop must "
+                f"sit {'below' if side == SIDE_BUY else 'above'} the "
+                f"{market_word}"
+            )
+        if gap + _SLACK < required_gap:
+            return _defer(
+                f"the proposed SL {target:g} is only {gap:g} price units from "
+                f"the {market_word} {market:g} but the broker requires "
+                f"{required_gap:g} (stops_level={stops_points} "
+                f"point={point_value})"
+            )
+        return StopMoveValidation(
+            position=fresh,
+            bid=bid,
+            ask=ask,
+            tick_time=tick_time,
+            stops_points=stops_points,
+            freeze_points=freeze_points,
+        )
 
     async def _move_stop(
         self, position: Any, side: str, target_sl: float, *, reason: str
@@ -3133,6 +3420,25 @@ class AutoTradingController:
                 )
             return False
 
+        # Fresh, current validation immediately before submission: the
+        # symbol's stop/freeze restrictions are re-read (they can change
+        # server-side), the position must still exist, and the target is
+        # checked on the market side that will execute it (Bid for a BUY,
+        # Ask for a SELL) against a brand-new tick. An invalid request is
+        # never submitted; the broker's existing stop is preserved and the
+        # move is deferred to a later scheduler cycle.
+        validated = await self._validate_stop_target(position_ticket, side, target)
+        if not validated.ok:
+            if validated.position is not None:
+                # Recoverable: retry on a later cycle rather than repeatedly
+                # sending the same rejected request.
+                self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
+                self._last_broker_result = f"SLTP deferred: {validated.reason}"
+                self._last_exit_result = (
+                    f"break-even stop move deferred: {validated.reason}"
+                )
+            return False
+
         self._sl_request_in_flight = True
         self._last_order_attempt = f"SLTP {side.upper()} ticket={position_ticket} target={target}"
         try:
@@ -3142,7 +3448,7 @@ class AutoTradingController:
                 "symbol": self._resolved_symbol(),
                 "position": int(position_ticket),
                 "sl": target,
-                "tp": _get_attr(position, "tp", 0.0) or 0.0,
+                "tp": _get_attr(validated.position, "tp", 0.0) or 0.0,
                 "magic": self.settings.auto_trade_magic_number,
                 "comment": _make_comment("AU_M1_T", self._cycle_counter),
             }
@@ -3150,7 +3456,8 @@ class AutoTradingController:
                 logger.info(
                     "MT5 SLTP submit: ts=%s profile=%s symbol=%s action=SLTP %s "
                     "position=%s magic=%s sl_before=%s sl_requested=%s tp=%s "
-                    "reason=%s",
+                    "reason=%s bid=%s ask=%s tick_time=%s tick_size=%s "
+                    "stops_level=%s freeze_level=%s",
                     _utcnow().isoformat(),
                     getattr(self.settings, "auto_trade_profile", None),
                     self._resolved_symbol(),
@@ -3159,14 +3466,23 @@ class AutoTradingController:
                     self.settings.auto_trade_magic_number,
                     self._current_sl,
                     target,
-                    _get_attr(position, "tp", 0.0) or 0.0,
+                    _get_attr(validated.position, "tp", 0.0) or 0.0,
                     reason,
+                    validated.bid,
+                    validated.ask,
+                    validated.tick_time,
+                    self._tick_size,
+                    validated.stops_points,
+                    validated.freeze_points,
                 )
                 self._last_sl_request_level = target
 
             try:
+                _sltp_start_ns = time.perf_counter_ns()
                 result = await self.connection.acall(mt5.order_send, request)
+                self._profile_stage("sltp_order_send", _sltp_start_ns, side=side, extra=f"retcode={_get_attr(result, 'retcode', None)} target={target}")
             except Exception as exc:  # noqa: BLE001
+                self._profile_stage("sltp_order_send", _sltp_start_ns, side=side, extra=f"exception={type(exc).__name__}")
                 self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
                 self._rejected_sl_level = target
                 self._degraded = True
@@ -3175,8 +3491,8 @@ class AutoTradingController:
                 return False
 
             logger.info(
-                "MT5 SLTP result: ts=%s profile=%s symbol=%s %s position=%s "
-                "retcode=%s comment=%s sl_after=%s",
+                "MT5 SLTP result: ts=%s profile=%s symbol=%s %s position=%s "                    "retcode=%s comment=%s sl_requested=%s",
+                
                 _utcnow().isoformat(),
                 getattr(self.settings, "auto_trade_profile", None),
                 self._resolved_symbol(),
@@ -3210,6 +3526,14 @@ class AutoTradingController:
                             self._position = bp
                 except Exception:  # noqa: BLE001
                     pass
+                logger.info(
+                    "MT5 SLTP rejection reconciled: %s ticket=%s "
+                    "broker_stored_sl=%s rejected_request=%s",
+                    side.upper(),
+                    position_ticket,
+                    self._current_sl,
+                    target,
+                )
                 self._last_broker_result = (
                     f"SLTP rejected: retcode={retcode} comment={comment or 'no result'}"
                 )
@@ -3379,6 +3703,7 @@ class AutoTradingController:
         quote: Any,
         during_restore: bool = False,
     ) -> None:
+        _cycle_complete_start_ns = time.perf_counter_ns()
         deal_id = self._deal_identifier(deal) if deal is not None else None
         already_processed = (
             deal_id is not None
@@ -3456,6 +3781,7 @@ class AutoTradingController:
         # orders are touched, never another position's stop-loss.
         await self._cancel_all_pending(reason="cycle completed")
         await self._record_trade_event("switching_started", price=exit_price, position_id=ticket, details=str(deal_id))
+        self._profile_stage("cycle_completion", _cycle_complete_start_ns, extra=f"ticket={ticket} deal={deal_id}")
         await self._persist_state(force=True)
 
     def _clear_active_position(self) -> None:

@@ -37,24 +37,10 @@ PRICE_OFFSET = 1.0
 
 #: Break-even activation offset applied after entry.
 BREAK_EVEN_OFFSET = 0.4
-BREAK_EVEN_ACTIVATION_OFFSET = BREAK_EVEN_OFFSET
-BE_OFFSET = BREAK_EVEN_OFFSET
-ACTIVATION_OFFSET = BREAK_EVEN_OFFSET
 
 #: Static follow-up trailing distance applied after break-even activation.
 #: This is deliberately separate from PRICE_OFFSET: entry offsets remain 1.00.
 TRAILING_DISTANCE = 0.4
-TRAIL_OFFSET = TRAILING_DISTANCE
-TRAILING_OFFSET = TRAILING_DISTANCE
-TRAIL_DISTANCE = TRAILING_DISTANCE
-TRAILING_STOP_DISTANCE = TRAILING_DISTANCE
-STOP_TRAILING_DISTANCE = TRAILING_DISTANCE
-BREAK_EVEN_TRAILING_DISTANCE = TRAILING_DISTANCE
-FOLLOW_UP_TRAILING_DISTANCE = TRAILING_DISTANCE
-FOLLOW_UP_DISTANCE = TRAILING_DISTANCE
-STATIC_TRAILING_DISTANCE = TRAILING_DISTANCE
-STATIC_TRAILING_DISTANCE_UNITS = TRAILING_DISTANCE
-BE_TRAILING_DISTANCE = TRAILING_DISTANCE
 
 #: Default symbol and chart timeframe.  The controller's configured
 #: ``AUTO_TRADE_SYMBOL`` / ``MT5_SYMBOL`` and ``AUTO_TRADE_TIMEFRAME`` take
@@ -82,9 +68,8 @@ def normalize_price(
     """Return ``price`` normalised to a valid symbol tick.
 
     The normalisation is a rounding of the already-calculated value; it never
-    substitutes a different threshold.  With the usual 0.01 tick size a
-    calculated 4101.00 stays 4101.00; a BTCUSD tick of 0.01 or 0.1 normalises
-    against the broker's own reported metadata.
+    substitutes a different threshold.  Prices normalise against the broker's
+    own reported tick size.
     """
     if price is None:
         return None
@@ -328,21 +313,7 @@ def effective_trailing_distance(
 __all__ = [
     "PRICE_OFFSET",
     "BREAK_EVEN_OFFSET",
-    "BREAK_EVEN_ACTIVATION_OFFSET",
-    "BE_OFFSET",
-    "ACTIVATION_OFFSET",
     "TRAILING_DISTANCE",
-    "TRAIL_OFFSET",
-    "TRAILING_OFFSET",
-    "TRAIL_DISTANCE",
-    "TRAILING_STOP_DISTANCE",
-    "STOP_TRAILING_DISTANCE",
-    "BREAK_EVEN_TRAILING_DISTANCE",
-    "FOLLOW_UP_TRAILING_DISTANCE",
-    "FOLLOW_UP_DISTANCE",
-    "STATIC_TRAILING_DISTANCE",
-    "STATIC_TRAILING_DISTANCE_UNITS",
-    "BE_TRAILING_DISTANCE",
     "STRATEGY_SYMBOL",
     "STRATEGY_TIMEFRAME",
     "CycleLevels",

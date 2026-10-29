@@ -214,6 +214,7 @@ class Settings(BaseSettings):
     auto_trade_stop_policy: str = Field(default="close", description="Stop policy")
     auto_trade_max_retries: int = Field(default=3, ge=0, le=10, description="Max retries")
     auto_trade_exit_buffer_seconds: int = Field(default=2, ge=0, le=300, description="Exit buffer seconds")
+    auto_trade_profile_timing: bool = Field(default=False, description="Enable high-resolution profiling logs for the trading critical path")
 
     # --- Dynamic break-even ---
     be_mode: str = Field(default="static", description="Break-even mode")

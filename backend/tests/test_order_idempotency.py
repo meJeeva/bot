@@ -88,8 +88,13 @@ async def test_legitimate_stop_change_still_triggers_sltp(monkeypatch):
 
     assert controller._position_ticket == 7002
 
-    position.sl = controller._current_sl
-    new_target = controller._current_sl + 10.0
+    # A change a broker would actually accept: the tracked SL is re-based to
+    # a protective level 1.00 below the current Bid, and the target moves it
+    # closer without ever reaching the Bid (a BUY SL at or above the Bid is
+    # the wrong market side and is deferred, never submitted).
+    bid = fake.ticks["XAUUSD"].bid
+    position.sl = controller._current_sl = bid - 10.0
+    new_target = bid - 5.0
     before = _sltp_count(fake)
     result = await controller._move_stop(position, "buy", new_target, reason="legitimate change")
     after = _sltp_count(fake)
