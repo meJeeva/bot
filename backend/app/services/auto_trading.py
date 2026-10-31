@@ -20,6 +20,8 @@ from typing import Any
 
 from ..config import Settings
 from ..logging_config import get_logger
+from ..strategy.trend_pullback import TrendPullbackStrategy
+from .position_manager import TrendPullbackPositionManager
 from ..mt5.connection import MT5Connection, describe_mt5_error
 from ..schemas.auto_trading import AutoTradingHistoryItem, AutoTradingHistoryResponse, AutoTradingStatus
 from ..services.market_monitor import MarketMonitor
@@ -58,6 +60,16 @@ class AutoTradingController:
         self.connection = connection
         self.monitor = monitor
         self.store = store
+
+        # M1 trend pullback strategy (disabled by default).
+        try:
+            self._trend_pullback = TrendPullbackStrategy(settings)
+        except Exception:
+            self._trend_pullback = None
+
+        self._position_manager = TrendPullbackPositionManager(settings, connection, monitor)
+
+        self._authorized_account = None
 
         self._lock = asyncio.Lock()
         self._task = None
@@ -150,6 +162,7 @@ class AutoTradingController:
             # unknown fill time (closed before the first entry).
             self._session_completed_cycles = 0
             self._entry_filled_monotonic = None
+            self._authorized_account = None
 
             try:
                 await self._preflight()
@@ -239,6 +252,50 @@ class AutoTradingController:
     # ------------------------------------------------------------------
     # Preflight
     # ------------------------------------------------------------------
+    def _demo_protection_enabled(self) -> bool:
+        return bool(getattr(self.settings, "auto_trade_demo_only", True))
+
+    async def _account_signature(self):
+        try:
+            account = await self.connection.acall(self.connection.mt5.account_info)
+        except Exception:
+            account = None
+        if account is None:
+            return None
+        return (
+            getattr(account, "login", None),
+            getattr(account, "server", None),
+            getattr(account, "trade_mode", None),
+        )
+
+    async def _demo_account_authorized(self) -> bool:
+        # Hard safety: live trading must never be enabled.
+        if bool(getattr(self.settings, "live_trading_enabled", False)):
+            return False
+        if self._demo_protection_enabled():
+            if not bool(getattr(self.settings, "auto_trade_demo_authorized", False)):
+                return False
+        if not await self.connection.acall(self.connection.is_connected):
+            return False
+        try:
+            account = await self.connection.acall(self.connection.mt5.account_info)
+        except Exception:
+            account = None
+        if account is None:
+            return False
+        # trade_mode must be exactly DEMO (0)
+        try:
+            trade_mode = int(getattr(account, "trade_mode", -1))
+        except (TypeError, ValueError):
+            return False
+        if trade_mode != 0:
+            return False
+        if not bool(getattr(account, "trade_allowed", False)):
+            return False
+        if not bool(getattr(account, "trade_expert", False)):
+            return False
+        return True
+
     async def _preflight(self):
         if not await self.connection.acall(self.connection.is_connected):
             raise RuntimeError("MT5 terminal is not connected")
@@ -253,6 +310,11 @@ class AutoTradingController:
         account = await self.connection.acall(mt5.account_info)
         if account is None:
             raise RuntimeError("MT5 account info is unavailable")
+
+        if self._demo_protection_enabled():
+            if not await self._demo_account_authorized():
+                raise RuntimeError("Demo trading authorization failed")
+            self._authorized_account = await self._account_signature()
 
         symbol = self._resolved_symbol()
         if symbol is None:
@@ -315,20 +377,43 @@ class AutoTradingController:
         (interval - holding). When the loop is late it never catches up: exactly
         one entry follows, and the cadence restarts from that fill.
         """
-        interval = float(self.settings.auto_trade_entry_interval_seconds)
+        if getattr(self.settings, "trend_pullback_enabled", False):
+            interval = min(float(self.settings.auto_trade_entry_interval_seconds), 1.0)
+            if interval < 1.0:
+                interval = 1.0
+        else:
+            interval = float(self.settings.auto_trade_entry_interval_seconds)
         next_entry_at = None
         try:
             while not self._stop_requested:
                 await self._reconcile_position_unlocked()
 
+                if self._demo_protection_enabled() and self._authorized_account is not None:
+                    sig = await self._account_signature()
+                    if sig != self._authorized_account:
+                        self._last_error = "Account changed during trading; stopping"
+                        self._stop_requested = True
+                        self._stop_event.set()
+                        break
+
                 if self._position_ticket is not None:
-                    await self._hold_and_exit()
-                    if self._position_ticket is not None:
-                        # The exit is not confirmed: keep tracking this position
-                        # and skip entries. Never open an overlapping trade.
-                        self._last_error = "Strategy position still open; entries skipped"
+                    if self._trend_pullback_enabled():
+                        # Manage open position (BE/trailing). No forced 3s exit.
+                        try:
+                            await self._position_manager.manage()
+                        except Exception as exc:
+                            logger.warning("Position management failed: %s", exc)
+                        self._last_error = None
                         await self._sleep(1.0)
                         continue
+                    else:
+                        await self._hold_and_exit()
+                        if self._position_ticket is not None:
+                            # The exit is not confirmed: keep tracking this position
+                            # and skip entries. Never open an overlapping trade.
+                            self._last_error = "Strategy position still open; entries skipped"
+                            await self._sleep(1.0)
+                            continue
 
                 if self._session_completed_cycles >= self.settings.auto_trade_max_cycles:
                     self._last_error = "Maximum cycles per session reached"
@@ -407,6 +492,39 @@ class AutoTradingController:
     # ------------------------------------------------------------------
     # Entry
     # ------------------------------------------------------------------
+    def _trend_pullback_enabled(self) -> bool:
+        try:
+            return bool(getattr(self.settings, "trend_pullback_enabled", False)) and self._trend_pullback is not None
+        except Exception:
+            return False
+
+    async def _fetch_candles(self, timeframe: str):
+        series = None
+        getter = getattr(self.monitor, "get_candles", None)
+        if callable(getter):
+            try:
+                series = await getter(timeframe, self.settings.candle_limit)
+            except TypeError:
+                try:
+                    series = await getter(timeframe)
+                except Exception:
+                    series = None
+            except Exception:
+                series = None
+        if series is None:
+            cached = getattr(self.monitor, "candle_series", None)
+            if callable(cached):
+                try:
+                    series = cached(timeframe)
+                except Exception:
+                    series = None
+        if series is None:
+            return []
+        candles = getattr(series, "candles", None)
+        if candles is None:
+            return list(series) if isinstance(series, (list, tuple)) else []
+        return list(candles)
+
     async def _enter_cycle(self):
         """Submit one BUY and return the monotonic time its fill was confirmed."""
         self._entry_in_progress = True
@@ -417,6 +535,9 @@ class AutoTradingController:
         self._history.append(item)
 
         try:
+            if self._trend_pullback_enabled():
+                return await self._enter_trend_pullback(cycle_id, item)
+
             await self._preflight_entry()
             result = await self._submit_entry(cycle_id)
             if result is None:
@@ -493,10 +614,186 @@ class AutoTradingController:
         finally:
             self._entry_in_progress = False
 
+    async def _enter_trend_pullback(self, cycle_id, item):
+        try:
+            await self._preflight_entry()
+        except Exception as exc:
+            item.status = "preflight_failed"
+            item.error = str(exc)
+            return None
+
+        symbol = self._resolved_symbol()
+        if symbol is None:
+            return None
+        if not self._trend_pullback.is_enabled_for_symbol(symbol):
+            return None
+
+        m1 = await self._fetch_candles(self.settings.trend_pullback_entry_timeframe)
+        m5 = await self._fetch_candles(self.settings.trend_pullback_trend_timeframe)
+        quote = self.monitor.latest_quote()
+        if quote is None or getattr(quote, "is_stale", False):
+            item.status = "stale_tick"
+            return None
+
+        point = getattr(quote, "point", None) or 0.01
+        tick_size = getattr(quote, "tick_size", None)
+        digits = None
+        try:
+            info = await self.connection.acall(self.connection.mt5.symbol_info, symbol)
+            digits = getattr(info, "digits", None)
+        except Exception:
+            info = None
+
+        # ATR from m5? use strategy's internal; pass m5
+        position_open = self._position_ticket is not None
+
+        signal = self._trend_pullback.evaluate(
+            symbol=symbol,
+            m5_candles=m5,
+            m1_candles=m1,
+            quote=quote,
+            point=point,
+            tick_size=tick_size,
+            digits=digits,
+            position_open=position_open,
+        )
+
+        # Use current signal if evaluate returned None but one is active
+        if signal is None:
+            signal = getattr(self._trend_pullback, "current_signal", None)
+
+        if signal is None:
+            item.status = "no_signal"
+            return None
+
+        direction = str(getattr(signal, "direction", "")).upper()
+        trigger = getattr(signal, "entry_trigger", None)
+        if trigger is None:
+            trigger = getattr(signal, "trigger", None)
+        sl = getattr(signal, "suggested_sl", None)
+        if sl is None:
+            sl = getattr(signal, "suggested_stop_loss", None)
+
+        # expiration check
+        if getattr(self._trend_pullback, "state", None) is not None:
+            st = str(self._trend_pullback.state)
+            if "EXPIRED" in st or "INVALIDATED" in st:
+                item.status = "signal_expired"
+                return None
+
+        if trigger is None:
+            item.status = "no_trigger"
+            return None
+
+        # breakout check using live tick
+        if direction == "BUY":
+            price = getattr(quote, "ask", None)
+            triggered = price is not None and float(price) >= float(trigger)
+        else:
+            price = getattr(quote, "bid", None)
+            triggered = price is not None and float(price) <= float(trigger)
+
+        if not triggered:
+            item.status = "waiting_for_breakout"
+            return None
+
+        # spread filter
+        spread_points = getattr(quote, "spread_points", None)
+        atr = getattr(signal, "atr", None) or getattr(signal, "atr_value", None)
+        from app.strategy.trend_pullback import filters_ok
+        if not filters_ok(
+            quote=quote,
+            atr=atr if atr is not None else 0,
+            point=point,
+            spread_points=spread_points,
+            position_open=position_open,
+            already_executed=False,
+            config=self._trend_pullback.config,
+        ):
+            item.status = "filtered_out"
+            return None
+
+        # broker stop level check
+        from app.strategy.trend_pullback import stop_level_ok
+        if not stop_level_ok(trigger, sl, point, tick_size=tick_size, quote=quote):
+            item.status = "stop_level_rejected"
+            return None
+
+        # submit
+        result = await self._submit_entry(
+            cycle_id,
+            direction=direction,
+            entry_price=price,
+            stop_loss=sl,
+        )
+        if result is None:
+            # ambiguous handling
+            if self._position_ticket is not None:
+                self._entry_filled_monotonic = self._now()
+                self._last_entry_result = "entry ambiguous but strategy position exists"
+                self._last_error = self._last_entry_result
+                item.status = "ambiguous"
+                item.error = self._last_entry_result
+                try:
+                    self._trend_pullback.mark_executed(getattr(signal, "setup_id", None))
+                except Exception:
+                    pass
+                return self._entry_filled_monotonic
+            self._failed_entries += 1
+            self._last_entry_result = "entry submission returned no result"
+            self._last_error = self._last_entry_result
+            item.status = "failed"
+            item.error = self._last_entry_result
+            return None
+
+        retcode = getattr(result, "retcode", None)
+        done_code = getattr(self.connection.mt5, "TRADE_RETCODE_DONE", 10009)
+        partial_code = getattr(self.connection.mt5, "TRADE_RETCODE_DONE_PARTIAL", 10010)
+        if retcode not in (done_code, partial_code):
+            msg = getattr(result, "comment", None) or f"retcode={retcode}"
+            self._failed_entries += 1
+            self._last_entry_result = f"entry rejected: {msg}"
+            self._last_error = self._last_entry_result
+            item.status = "rejected"
+            item.error = self._last_entry_result
+            # broker rejection should not corrupt strategy state; keep signal
+            return None
+
+        if not await self._wait_for_position(True):
+            self._failed_entries += 1
+            self._last_entry_result = "entry reported done but no strategy position found"
+            self._last_error = self._last_entry_result
+            item.status = "ambiguous"
+            item.error = self._last_entry_result
+            return None
+
+        filled_at = self._now()
+        self._entry_filled_monotonic = filled_at
+        self._successful_entries += 1
+        self._last_entry_result = f"entry filled ticket {self._position_ticket}"
+        item.status = "filled"
+        item.entry_price = self._entry_price
+        item.entry_time = self._entry_time
+        item.volume = self._entry_volume
+        try:
+            self._trend_pullback.mark_executed(getattr(signal, "setup_id", None))
+        except Exception:
+            pass
+        logger.info("Entry filled: cycle=%s ticket=%s", cycle_id, self._position_ticket)
+        return filled_at
+
     async def _preflight_entry(self):
         if self._stop_requested:
             # Stop may arrive while an earlier wait or call was in flight.
             raise RuntimeError("Stop requested; entry cancelled")
+        if self._demo_protection_enabled():
+            if not await self._demo_account_authorized():
+                raise RuntimeError("Demo trading authorization failed")
+            sig = await self._account_signature()
+            if self._authorized_account is not None and sig != self._authorized_account:
+                self._stop_requested = True
+                self._stop_event.set()
+                raise RuntimeError("Account changed during trading")
         if not await self.connection.acall(self.connection.is_connected):
             raise RuntimeError("MT5 terminal is not connected")
         terminal = await self.connection.acall(self.connection.mt5.terminal_info)
@@ -515,30 +812,45 @@ class AutoTradingController:
         if self._position_ticket is not None:
             raise RuntimeError("Previous strategy position still open")
 
-    async def _submit_entry(self, cycle_id):
+    async def _submit_entry(self, cycle_id, *, direction: str = "BUY", entry_price=None, stop_loss=None):
         mt5 = self.connection.mt5
         symbol = self._resolved_symbol()
         quote = self.monitor.latest_quote()
-        price = getattr(quote, "ask", None) if quote else None
+        direction = str(direction).upper()
+        if entry_price is not None:
+            price = entry_price
+        elif direction == "BUY":
+            price = getattr(quote, "ask", None) if quote else None
+        else:
+            price = getattr(quote, "bid", None) if quote else None
         if price is None:
-            raise RuntimeError("No ask price")
+            raise RuntimeError("No price")
 
         info = await self.connection.acall(mt5.symbol_info, symbol)
         volume = self.settings.auto_trade_volume
         filling = self._filling_mode(mt5, info)
 
+        if direction == "BUY":
+            order_type = getattr(mt5, "ORDER_TYPE_BUY", 0)
+            prefix = "AU_M1_B"
+        else:
+            order_type = getattr(mt5, "ORDER_TYPE_SELL", 1)
+            prefix = "AU_M1_S"
+
         request = {
             "action": getattr(mt5, "TRADE_ACTION_DEAL", 1),
             "symbol": symbol,
             "volume": volume,
-            "type": getattr(mt5, "ORDER_TYPE_BUY", 0),
+            "type": order_type,
             "price": price,
             "deviation": self.settings.auto_trade_max_entry_deviation_points,
             "magic": self.settings.auto_trade_magic_number,
-            "comment": _make_comment("AU_M1_B", self._cycle_counter),
+            "comment": _make_comment(prefix, self._cycle_counter),
             "type_time": getattr(mt5, "ORDER_TIME_GTC", 0),
             "type_filling": filling,
         }
+        if stop_loss is not None:
+            request["sl"] = stop_loss
         logger.info("Submitting entry: %s", request)
         try:
             result = await self.connection.acall(mt5.order_send, request)
@@ -614,6 +926,10 @@ class AutoTradingController:
             self._exit_in_progress = False
 
     async def _close_position(self, reason) -> bool:
+        if self._demo_protection_enabled():
+            if not await self._demo_account_authorized():
+                self._last_error = "Demo trading authorization failed; close blocked"
+                return False
         """Request the close and confirm it against MT5.
 
         Returns ``True`` only when MT5 reports no strategy position left; a
@@ -634,16 +950,25 @@ class AutoTradingController:
                 return True
 
             pos_volume = volume
+            pos_type = 0
             positions = await self._get_positions()
             for p in positions:
                 if getattr(p, "ticket", None) == ticket:
                     pos_volume = getattr(p, "volume", pos_volume)
+                    pos_type = getattr(p, "type", 0)
                     break
 
             quote = self.monitor.latest_quote()
-            price = getattr(quote, "bid", None) if quote else None
+            if pos_type == 0:
+                # closing a BUY position -> sell
+                price = getattr(quote, "bid", None) if quote else None
+                close_type = getattr(mt5, "ORDER_TYPE_SELL", 1)
+            else:
+                # closing a SELL position -> buy
+                price = getattr(quote, "ask", None) if quote else None
+                close_type = getattr(mt5, "ORDER_TYPE_BUY", 0)
             if price is None:
-                self._last_error = "No bid price for exit"
+                self._last_error = "No price for exit"
                 await self._sleep(1.0)
                 continue
 
@@ -652,7 +977,7 @@ class AutoTradingController:
                 "action": getattr(mt5, "TRADE_ACTION_DEAL", 1),
                 "symbol": symbol,
                 "volume": pos_volume,
-                "type": getattr(mt5, "ORDER_TYPE_SELL", 1),
+                "type": close_type,
                 "position": ticket,
                 "price": price,
                 "deviation": self.settings.auto_trade_max_entry_deviation_points,

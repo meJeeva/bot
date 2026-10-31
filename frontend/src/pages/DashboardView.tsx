@@ -5,7 +5,6 @@ import { QuotePanel } from '../components/QuotePanel';
 import { AutoTradingPanel } from '../components/AutoTradingPanel';
 import { Pill, type PillTone } from '../components/terminal/ui';
 
-/** Connection state as a pill tone. */
 const STATE_TONE: Record<string, PillTone> = {
   live: 'positive',
   stale: 'warning',
@@ -23,13 +22,6 @@ export interface DashboardViewProps {
   streamNotice: string | null;
 }
 
-/**
- * The only screen: everything the application is allowed to do.
- *
- * The data comes from the backend's read-only endpoints. Nothing here can arm
- * an execution system, submit an order or change a setting, and an unavailable
- * value is rendered as unavailable rather than fabricated.
- */
 export function DashboardView({
   health,
   snapshot,
@@ -45,14 +37,14 @@ export function DashboardView({
   return (
     <div className="dashboard">
       <header className="app-header">
-        <div>
+        <div className="header-brand">
           <h1>MT5 Market Data</h1>
           <p className="subtitle">
-            Read-only market data from the MetaTrader 5 terminal
+            Automated trading dashboard
             {symbol ? ` · ${symbol}` : ''}
           </p>
         </div>
-        <div className="section-actions">
+        <div className="header-status">
           <Pill tone={STATE_TONE[overallState] ?? 'neutral'} testId="overall-pill">
             {overallState}
           </Pill>
@@ -65,27 +57,24 @@ export function DashboardView({
         </p>
       ) : null}
 
-      <div className="card-grid">
-        <ConnectionStatusCard
-          state={overallState}
-          snapshot={snapshot}
-          health={health}
-          streamNotice={streamNotice}
-        />
-        <QuotePanel quote={quote} />
-        <AutoTradingPanel />
+      <div className="dashboard-grid">
+        <div className="dashboard-column">
+          <ConnectionStatusCard
+            state={overallState}
+            snapshot={snapshot}
+            health={health}
+            streamNotice={streamNotice}
+          />
+          <QuotePanel quote={quote} />
+        </div>
+        <div className="dashboard-column">
+          <AutoTradingPanel />
+        </div>
       </div>
 
       <footer className="app-footer">
         <p>
-          Data source: MetaTrader 5 desktop terminal via the official Python API. Tick and bar times
-          come from the broker server&apos;s clock; user-facing timestamps are labelled with the
-          timezone they were converted to.
-        </p>
-        <p className="footnote">
-          <strong>Read-only.</strong> This application never connects an execution system, never
-          submits, modifies or closes an order, and never changes a backend setting. When the
-          terminal is unavailable, missing prices are shown as unavailable rather than invented.
+          Data source: MetaTrader 5 desktop terminal via the official Python API.
         </p>
       </footer>
     </div>

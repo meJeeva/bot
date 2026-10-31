@@ -314,6 +314,8 @@ def test_status_endpoint_reports_the_5s_cycle_and_never_starts_trading():
         log_level="WARNING",
         poll_interval_ms=200,
         auto_trade_max_cycles=5,
+        auto_trade_demo_authorized=True,
+        live_trading_enabled=False,
     )
     fake = gold_terminal_with_live_tick()
     app = create_app(settings, mt5_module=fake)

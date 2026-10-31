@@ -47,6 +47,7 @@ SYMBOL_FILLING_FOK = 1
 SYMBOL_FILLING_IOC = 2
 
 TRADE_ACTION_DEAL = 1
+TRADE_ACTION_SLTP = 6
 ORDER_TYPE_BUY = 0
 ORDER_TYPE_SELL = 1
 ORDER_TIME_GTC = 0
@@ -56,6 +57,7 @@ TRADE_RETCODE_DONE = 10009
 TRADE_RETCODE_DONE_PARTIAL = 10010
 
 TRADE_ACTION_DEAL = 1
+TRADE_ACTION_SLTP = 6
 ORDER_TYPE_BUY = 0
 ORDER_TYPE_SELL = 1
 ORDER_TIME_GTC = 0
@@ -226,6 +228,8 @@ class FakeAccountInfo:
         balance: float = 100000.0,
         equity: float | None = None,
         margin_free: float | None = None,
+        trade_expert: bool = True,
+        trade_allowed: bool = True,
     ) -> None:
         self.login = login
         self.server = server
@@ -235,6 +239,8 @@ class FakeAccountInfo:
         self.equity = balance if equity is None else equity
         self.margin_free = (self.equity * 10) if margin_free is None else margin_free
         self.leverage = 100
+        self.trade_expert = trade_expert
+        self.trade_allowed = trade_allowed
 
 
 @dataclass
@@ -461,6 +467,22 @@ class FakeMT5:
         magic = req.get("magic", 0)
         comment = req.get("comment", "")
 
+        action = req.get("action", 1)
+        if action == 6:
+            sl = req.get("sl", None)
+            tp = req.get("tp", None)
+            for p in self.positions:
+                if p.ticket == position:
+                    if sl is not None:
+                        p.sl = sl
+                    if tp is not None:
+                        p.tp = tp
+                    result.retcode = 10009
+                    return result
+            result.retcode = 10013
+            result.comment = "invalid position"
+            return result
+
         if result.retcode == 10009:
             if position is None:
                 ticket = self.next_position_ticket
@@ -524,6 +546,22 @@ class FakeMT5:
         position = req.get("position")
         magic = req.get("magic", 0)
         comment = req.get("comment", "")
+
+        action = req.get("action", 1)
+        if action == 6:
+            sl = req.get("sl", None)
+            tp = req.get("tp", None)
+            for p in self.positions:
+                if p.ticket == position:
+                    if sl is not None:
+                        p.sl = sl
+                    if tp is not None:
+                        p.tp = tp
+                    result.retcode = 10009
+                    return result
+            result.retcode = 10013
+            result.comment = "invalid position"
+            return result
 
         if result.retcode == 10009:
             if position is None:

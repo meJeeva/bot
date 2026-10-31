@@ -107,6 +107,39 @@ class Settings(BaseSettings):
     auto_trade_stop_policy: str = Field(default="close", description="Stop policy: close or leave")
     auto_trade_max_retries: int = Field(default=3, ge=0, le=10, description="Bounded retries for transient failures")
 
+    # --- Strict demo-only trading protection ---
+    auto_trade_demo_only: bool = Field(default=True, description="Restrict automatic trading to demo accounts only")
+    auto_trade_demo_authorized: bool = Field(default=False, description="Explicit authorization for demo trading")
+    live_trading_enabled: bool = Field(default=False, description="Allow live trading (must remain false)")
+
+    # --- M1 Trend Pullback Scalping strategy (disabled by default) ---
+    trend_pullback_enabled: bool = Field(default=False, description="Enable the M1 trend pullback scalping strategy")
+    trend_pullback_symbols: str = Field(default="XAUUSD", description="Comma-separated symbols enabled for trend pullback")
+    trend_pullback_entry_timeframe: str = Field(default="M1", description="Entry timeframe for trend pullback")
+    trend_pullback_trend_timeframe: str = Field(default="M5", description="Trend timeframe for trend pullback")
+    trend_pullback_fast_ema: int = Field(default=20, ge=1, description="Fast EMA period")
+    trend_pullback_slow_ema: int = Field(default=50, ge=2, description="Slow EMA period")
+    trend_pullback_atr_period: int = Field(default=14, ge=1, description="ATR period")
+    trend_pullback_lookback: int = Field(default=5, ge=1, le=5, description="Pullback lookback candles")
+    trend_pullback_ema_tolerance_atr: float = Field(default=0.15, ge=0, description="EMA pullback tolerance in ATR units")
+    trend_pullback_entry_buffer_points: float = Field(default=5.0, ge=0, description="Entry trigger buffer in points")
+    trend_pullback_sl_buffer_points: float = Field(default=5.0, ge=0, description="Stop loss buffer in points")
+    trend_pullback_signal_expiry_candles: int = Field(default=2, ge=1, description="Signal expiration in completed M1 candles")
+    trend_pullback_min_candle_atr: float = Field(default=0.3, ge=0, description="Minimum confirmation candle size in ATR units")
+    trend_pullback_max_candle_atr: float = Field(default=2.0, ge=0, description="Maximum confirmation candle size in ATR units")
+    trend_pullback_max_spread_points: float = Field(default=100.0, ge=0, description="Maximum spread in points for trend pullback entries")
+    trend_pullback_max_spread_atr_ratio: float = Field(default=0.35, ge=0, description="Maximum spread as ratio of ATR")
+    trend_pullback_stale_tick_seconds: int = Field(default=20, ge=1, description="Maximum tick age in seconds")
+
+    # --- Trend Pullback position management ---
+    trend_pullback_be_enabled: bool = Field(default=False, description="Enable break-even management for trend pullback")
+    trend_pullback_be_atr_multiplier: float = Field(default=0.6, ge=0, description="Break-even ATR multiplier")
+    trend_pullback_be_min_spread_multiplier: float = Field(default=2.0, ge=0, description="Minimum spread multiplier for BE")
+    trend_pullback_be_buffer_points: float = Field(default=5.0, ge=0, description="Break-even protective buffer in points")
+    trend_pullback_trailing_enabled: bool = Field(default=False, description="Enable ATR trailing for trend pullback")
+    trend_pullback_trailing_atr_period: int = Field(default=14, ge=1, description="Trailing ATR period")
+    trend_pullback_trailing_atr_multiplier: float = Field(default=0.8, ge=0, description="Trailing ATR multiplier")
+    trend_pullback_trailing_min_distance_points: float = Field(default=10.0, ge=0, description="Minimum trailing distance in points")
     # --- Computed Fields ---
     @property
     def allowed_origins_list(self) -> List[str]:
@@ -147,6 +180,12 @@ class Settings(BaseSettings):
                 seen.add(candidate)
                 result.append(candidate)
         return result
+
+    @property
+    def trend_pullback_symbols_list(self) -> List[str]:
+        if not self.trend_pullback_symbols:
+            return []
+        return [s.strip().upper() for s in self.trend_pullback_symbols.split(",") if s.strip()]
 
     @property
     def mt5_credentials_supplied(self) -> bool:

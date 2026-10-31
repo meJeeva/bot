@@ -160,6 +160,7 @@ class TestEnvironmentLoading:
 
     def test_get_settings_is_cached_and_resettable(self, monkeypatch):
         monkeypatch.setenv("MT5_SYMBOL", "XAUUSD")
+        monkeypatch.setenv("MT5_LOGIN", "12345")
         reset_settings_cache()
         first = get_settings()
         assert get_settings() is first

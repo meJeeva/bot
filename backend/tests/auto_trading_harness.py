@@ -78,6 +78,8 @@ async def build_controller(fake_mt5, **overrides):
     """A controller wired to the fake terminal and a live-looking monitor."""
     overrides.setdefault("database_enabled", False)
     overrides.setdefault("log_level", "WARNING")
+    overrides.setdefault("auto_trade_demo_authorized", True)
+    overrides.setdefault("live_trading_enabled", False)
     settings = Settings(_env_file=None, **overrides)
     connection = MT5Connection(settings, mt5_module=fake_mt5)
     await connection.initialize()
