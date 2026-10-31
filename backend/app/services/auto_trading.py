@@ -500,6 +500,14 @@ class AutoTradingController:
         # Symbol metadata used to normalise submitted prices.
         self._tick_size: float | None = None
         self._digits: int | None = None
+        # Cached broker symbol metadata and resolved symbol name. The broker
+        # contract for a resolved symbol is stable for the lifetime of a
+        # session, so repeated MT5 round-trips are avoided while still
+        # invalidating when the resolved name changes.
+        self._symbol_info_cache: Any = None
+        self._symbol_info_cache_name: str | None = None
+        self._resolved_symbol_cache_key: tuple[Any, Any] | None = None
+        self._resolved_symbol_cached: str | None = None
         # Configured instrument identity. The strategy formulas are generic;
         # the symbol, timeframe and entry offset come from configuration, and
         # the XAUUSD module defaults apply only while nothing else is set.
@@ -614,13 +622,41 @@ class AutoTradingController:
 
     def _resolved_symbol(self) -> str | None:
         status = self.monitor.symbol_status
-        return getattr(status, "resolved", None) or getattr(status, "requested", None)
+        resolved = getattr(status, "resolved", None) or getattr(status, "requested", None)
+        # Cache the resolved name per monitor status object so the hot path
+        # does not re-read monitor state on every call; invalidate when the
+        # status object or its resolved value changes.
+        key = (id(status), resolved)
+        if self._resolved_symbol_cache_key == key:
+            return self._resolved_symbol_cached
+        self._resolved_symbol_cache_key = key
+        self._resolved_symbol_cached = resolved
+        return resolved
 
     def _norm(self, price: float | None) -> float | None:
         return normalize_price(price, self._tick_size, self._digits)
 
     def _tolerance(self) -> float:
         return price_tolerance(self._tick_size, self._digits)
+
+    async def _get_cached_symbol_info(self, mt5: Any, symbol: str | None) -> Any:
+        """Return broker metadata for ``symbol``, reusing a valid cached copy.
+
+        The contract metadata for a resolved symbol is stable for the lifetime
+        of a session, so repeated ``symbol_info`` round-trips are avoided.
+        The cache invalidates automatically when the resolved symbol changes
+        or when a previous read returned nothing usable.
+        """
+        if symbol is not None and self._symbol_info_cache is not None and self._symbol_info_cache_name == symbol:
+            return self._symbol_info_cache
+        info = await self.connection.acall(mt5.symbol_info, symbol)
+        if info is not None and symbol is not None:
+            self._symbol_info_cache = info
+            self._symbol_info_cache_name = symbol
+        elif symbol is None:
+            self._symbol_info_cache = None
+            self._symbol_info_cache_name = None
+        return info
 
     def _adopt_price_metadata(self, info: Any) -> None:
         """Refresh the price granularity from a freshly-read ``symbol_info``.
@@ -1196,11 +1232,10 @@ class AutoTradingController:
                 f"A valid {self._strategy_symbol} bid/ask is unavailable"
             )
 
-        info = await self.connection.acall(mt5.symbol_info, symbol)
+        info = await self._get_cached_symbol_info(mt5, symbol)
         if info is None:
             raise RuntimeError("Symbol info is unavailable")
-        self._tick_size = _get_attr(info, "trade_tick_size", None) or _get_attr(info, "point", None)
-        self._digits = _get_attr(info, "digits", None)
+        self._adopt_price_metadata(info)
 
         # A chart being visible in the terminal says nothing about algorithmic
         # trading: trade_mode 0 means the broker disabled the instrument.
@@ -2377,7 +2412,8 @@ class AutoTradingController:
         # on every retry attempt.
         mt5 = self.connection.mt5
         _meta_start_ns = time.perf_counter_ns()
-        info = await self.connection.acall(mt5.symbol_info, self._resolved_symbol())
+        _resolved = self._resolved_symbol()
+        info = await self._get_cached_symbol_info(mt5, _resolved)
         self._adopt_price_metadata(info)
         self._profile_stage("symbol_metadata", _meta_start_ns, side=side, extra=f"stops_level={_get_attr(info, 'trade_stops_level', None)} freeze_level={_get_attr(info, 'trade_freeze_level', None)}")
         point_value = _get_attr(info, "point", None) or self._tick_size
@@ -3146,7 +3182,8 @@ class AutoTradingController:
         self._profile_stage("break_even_trailing", _be_start_ns, side=side, extra=f"changed={changed}")
     async def _effective_trailing_distance(self) -> float:
         cap = float(self._trailing_distance)
-        if self._trailing_mode != "atr":
+        # "static" and "fixed" both mean an exact configured trailing gap.
+        if self._trailing_mode in ("static", "fixed"):
             return cap
         atr = await self._calculate_trail_atr()
         if atr is not None:
@@ -3220,7 +3257,7 @@ class AutoTradingController:
 
         mt5 = self.connection.mt5
         try:
-            info = await self.connection.acall(mt5.symbol_info, symbol)
+            info = await self._get_cached_symbol_info(mt5, symbol)
         except Exception:  # noqa: BLE001 - defer, never send blind
             info = None
         self._adopt_price_metadata(info)
@@ -3338,6 +3375,20 @@ class AutoTradingController:
                 f"{required_gap:g} (stops_level={stops_points} "
                 f"point={point_value})"
             )
+        # The proposed stop must be a genuine improvement over the broker's
+        # actual stored SL, not just a market-valid level on the right side.
+        if broker_value is not None and broker_value > 0:
+            improvement_tolerance = self._tolerance()
+            if side == SIDE_BUY and target <= broker_value + improvement_tolerance:
+                return _defer(
+                    f"the proposed SL {target:g} does not improve the broker's "
+                    f"current SL {broker_value:g} for a {side.upper()} position"
+                )
+            if side == SIDE_SELL and target >= broker_value - improvement_tolerance:
+                return _defer(
+                    f"the proposed SL {target:g} does not improve the broker's "
+                    f"current SL {broker_value:g} for a {side.upper()} position"
+                )
         return StopMoveValidation(
             position=fresh,
             bid=bid,
@@ -3393,12 +3444,10 @@ class AutoTradingController:
             except (TypeError, ValueError):
                 pass
 
-        # Never loosen a stop, whatever a stale state or broker echo says.
-        if self._current_sl is not None:
-            if side == SIDE_BUY and target <= self._current_sl + tolerance:
-                return False
-            if side == SIDE_SELL and target >= self._current_sl - tolerance:
-                return False
+        # Never loosen a stop. The broker-side check is re-run against the
+        # freshly reconciled broker SL inside _validate_stop_target; here we
+        # only honour an explicit retry window so a rejected request is not
+        # immediately retried.
         if self._now() < self._sl_retry_at:
             return False
 
@@ -3431,8 +3480,10 @@ class AutoTradingController:
         if not validated.ok:
             if validated.position is not None:
                 # Recoverable: retry on a later cycle rather than repeatedly
-                # sending the same rejected request.
-                self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
+                # sending the same rejected request. A non-improving stop is
+                # not a transient condition, so it does not earn a retry.
+                if "does not improve" not in (validated.reason or ""):
+                    self._sl_retry_at = self._now() + _SL_RETRY_SECONDS
                 self._last_broker_result = f"SLTP deferred: {validated.reason}"
                 self._last_exit_result = (
                     f"break-even stop move deferred: {validated.reason}"
@@ -3851,7 +3902,7 @@ class AutoTradingController:
                 await self._sleep(1.0)
                 continue
 
-            info = await self.connection.acall(mt5.symbol_info, symbol)
+            info = await self._get_cached_symbol_info(mt5, symbol)
             request = {
                 "action": _get_attr(mt5, "TRADE_ACTION_DEAL", 1),
                 "symbol": symbol,

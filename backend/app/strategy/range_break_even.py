@@ -259,7 +259,23 @@ def calculate_atr(rates: Any, period: int = 14) -> float | None:
     def _get(item, name):
         if isinstance(item, dict):
             return item.get(name)
-        return getattr(item, name, None)
+        getter = getattr(item, "get", None)
+        if callable(getter):
+            try:
+                value = getter(name)
+                if value is not None:
+                    return value
+            except Exception:  # noqa: BLE001 - defensive
+                pass
+        attr = getattr(item, name, None)
+        if attr is not None:
+            return attr
+        # numpy structured records (and other mapping-like rows) expose
+        # fields through item access rather than attributes.
+        try:
+            return item[name]
+        except Exception:  # noqa: BLE001 - defensive
+            return None
 
     completed = items[:-1]
     if len(completed) < period + 1:
